@@ -1,0 +1,12 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+*.db
+*.db-wal
+*.db-shm
+node_modules/
+dist/
+.pytest_cache/
+.DS_Store
+.playwright-mcp/

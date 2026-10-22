@@ -1,0 +1,693 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Rules, Bravo platform, Triage</title>
+<script>
+  const q = new URLSearchParams(location.search);
+  if (q.get("theme")) document.documentElement.dataset.theme = q.get("theme");
+  document.documentElement.dataset.tab = q.get("tab") || "doc";
+</script>
+<style>
+/* Triage design tokens.
+ *
+ * Fonts: Atkinson Hyperlegible Next for everything, Atkinson Hyperlegible Mono
+ * only inside the YAML editor. In React prefer the <link> in index.html over
+ * this @import so the font request starts before the CSS parses:
+ *
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap" rel="stylesheet">
+ */
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* Base palette, light. Neutrals derive from RAL 7035 (enclosure grey) and
+     RAL 7016 (anthracite); interaction is RAL 5005 (signal blue). */
+  --plane: #e9ece9;          /* page background, enclosure grey */
+  --surface: #f8f9f7;        /* panels, table body */
+  --surface-sunk: #eff1ee;   /* table header, code, badges */
+  --ink: #22292b;            /* anthracite, primary text */
+  --ink-2: #4b5558;          /* secondary text */
+  --ink-3: #5d676a;          /* muted text; AA on plane, surface and sunk */
+  --rule: #d5dad7;           /* hairline dividers, decorative only */
+  --rule-strong: #7f8987;    /* input and control boundaries, 3:1 */
+  --signal: #1f4f8f;         /* links, primary buttons, focus, selection */
+  --signal-ink: #ffffff;     /* text on --signal */
+  --signal-wash: #e1e9f4;    /* selected row */
+
+  /* Semantic. Never decorative; always paired with an icon and a word. */
+  --ok: #1d6e45;             /* approved, validation passed */
+  --ok-wash: #e2efe7;
+  --danger: #a3164f;         /* rejected, validation failed; crimson, kept clear of the urgency ramp */
+  --danger-wash: #f6e3ea;
+
+  /* Urgency bands. The only warm colour in the product. One hue (safety
+     orange), ordered by distance from the surface: today sits furthest from
+     the page in both themes, so the same band is rust here and peach in dark.
+     Validated with the dataviz ordinal checks against --surface. */
+  --band-today: #9d2800;
+  --band-today-ink: #ffffff;
+  --band-week: #be4500;
+  --band-week-ink: #ffffff;
+  --band-month: #d36c1b;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #d58d52;
+  --band-shutdown-ink: #1a2023;
+  --band-backlog: #d3ab85;
+  --band-backlog-ink: #1a2023;
+
+  /* Type */
+  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-code: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+
+  --fs-xs: 0.75rem;   --lh-xs: 1rem;        /* 12/16 badges, table meta */
+  --fs-sm: 0.8125rem; --lh-sm: 1.125rem;    /* 13/18 secondary, table cells */
+  --fs-base: 0.9375rem; --lh-base: 1.4rem;  /* 15/22.4 body, rationale */
+  --fs-md: 1.0625rem; --lh-md: 1.5rem;      /* 17/24 panel headings, band strips */
+  --fs-lg: 1.25rem;   --lh-lg: 1.625rem;    /* 20/26 screen titles, tag in detail */
+  --fs-xl: 1.5rem;    --lh-xl: 1.875rem;    /* 24/30 score numerals */
+  --fs-2xl: 2rem;     --lh-2xl: 2.25rem;    /* 32/36 rare */
+  --fs-num: 3rem;     --lh-num: 1;          /* 48 urgency numeral in detail */
+
+  --fw-regular: 400;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --fw-heavy: 780;   /* numerals only */
+
+  --measure: 68ch;   /* prose line length */
+
+  /* Space, 4px base */
+  --sp-1: 0.125rem;  /* 2 */
+  --sp-2: 0.25rem;   /* 4 */
+  --sp-3: 0.5rem;    /* 8 */
+  --sp-4: 0.75rem;   /* 12 */
+  --sp-5: 1rem;      /* 16 */
+  --sp-6: 1.5rem;    /* 24 */
+  --sp-7: 2rem;      /* 32 */
+  --sp-8: 3rem;      /* 48 */
+  --sp-9: 4rem;      /* 64 */
+
+  /* Radius by role, not one radius everywhere */
+  --r-strip: 0;      /* table rows, band strips */
+  --r-chip: 3px;     /* chips, badges, score cells */
+  --r-control: 6px;  /* buttons, inputs */
+  --r-panel: 10px;   /* panels, sheets, dialogs */
+
+  --shadow-overlay: 0 8px 24px rgb(34 41 43 / 0.18), 0 1px 3px rgb(34 41 43 / 0.12);
+
+  --hit: 2.75rem;    /* 44px minimum touch target */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--signal);
+
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #1a2023;
+    --surface: #1e2427;
+    --surface-sunk: #262e31;
+    --ink: #e6e9e6;
+    --ink-2: #b4bdbc;
+    --ink-3: #929c9d;
+    --rule: #333c3f;
+    --rule-strong: #6f797c;
+    --signal: #8fb6ee;
+    --signal-ink: #10243f;
+    --signal-wash: #223246;
+    --ok: #72c99d;
+    --ok-wash: #1d3329;
+    --danger: #f28fb4;
+    --danger-wash: #3d2330;
+    --band-today: #ffac5a;
+    --band-today-ink: #1a2023;
+    --band-week: #f68e40;
+    --band-week-ink: #1a2023;
+    --band-month: #de7133;
+    --band-month-ink: #1a2023;
+    --band-shutdown: #af5b39;
+    --band-shutdown-ink: #ffffff;
+    --band-backlog: #824c39;
+    --band-backlog-ink: #ffffff;
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #1a2023;
+  --surface: #1e2427;
+  --surface-sunk: #262e31;
+  --ink: #e6e9e6;
+  --ink-2: #b4bdbc;
+  --ink-3: #929c9d;
+  --rule: #333c3f;
+  --rule-strong: #6f797c;
+  --signal: #8fb6ee;
+  --signal-ink: #10243f;
+  --signal-wash: #223246;
+  --ok: #72c99d;
+  --ok-wash: #1d3329;
+  --danger: #f28fb4;
+  --danger-wash: #3d2330;
+  --band-today: #ffac5a;
+  --band-today-ink: #1a2023;
+  --band-week: #f68e40;
+  --band-week-ink: #1a2023;
+  --band-month: #de7133;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #af5b39;
+  --band-shutdown-ink: #ffffff;
+  --band-backlog: #824c39;
+  --band-backlog-ink: #ffffff;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Shared components */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, p, ol, ul, dl, dd { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--signal); text-underline-offset: 0.18em; }
+abbr[title] { text-decoration: none; }
+.i { width: 1em; height: 1em; flex: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: var(--sp-3); top: -3rem; background: var(--signal); color: var(--signal-ink); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-control); z-index: 10; }
+.skip:focus { top: var(--sp-3); }
+
+/* Top bar with the readiness strip */
+.topbar {
+  display: flex; align-items: center; gap: var(--sp-6);
+  padding: 0 var(--sp-6);
+  min-height: 3.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.wordmark { font-weight: var(--fw-heavy); font-size: var(--fs-md); letter-spacing: -0.01em; }
+.ws {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: var(--hit); padding: 0 var(--sp-3);
+  background: none; border: 0; border-radius: var(--r-control);
+  font-weight: var(--fw-medium); cursor: pointer;
+}
+.ws:hover { background: var(--surface-sunk); }
+.ready { display: flex; align-items: center; gap: var(--sp-5); margin-left: auto; }
+.ready__step { display: flex; align-items: center; gap: var(--sp-3); color: var(--ink-3); }
+.ready__step + .ready__step::before {
+  content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); margin-right: var(--sp-2);
+}
+.ready__n {
+  display: grid; place-items: center;
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+}
+.ready__step.is-done { color: var(--ink); }
+.ready__step.is-done .ready__n { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.ready__step.is-current .ready__t { font-weight: var(--fw-bold); }
+.ready__t { display: flex; flex-direction: column; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ready__s { font-weight: var(--fw-regular); color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.iconbtn {
+  display: inline-grid; place-items: center;
+  width: var(--hit); height: var(--hit);
+  background: none; border: 0; border-radius: var(--r-control); color: var(--ink-2); cursor: pointer;
+}
+.iconbtn:hover { background: var(--surface-sunk); color: var(--ink); }
+
+/* Buttons. Never warm: orange belongs to urgency. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  min-height: var(--hit); padding: 0 var(--sp-5);
+  border-radius: var(--r-control); border: 1px solid transparent;
+  font-weight: var(--fw-bold); font-size: var(--fs-base); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.btn--primary { background: var(--signal); color: var(--signal-ink); }
+.btn--primary:hover { background: color-mix(in oklab, var(--signal) 88%, var(--ink)); }
+.btn--secondary { background: var(--surface); border-color: var(--rule-strong); color: var(--ink); }
+.btn--secondary:hover { background: var(--surface-sunk); }
+.btn--quiet { background: transparent; border-color: var(--rule-strong); color: var(--ink); }
+.btn--quiet:hover { background: var(--surface-sunk); }
+
+/* SCE: the one badge that is always filled, because it is the primary review trigger */
+.sce {
+  display: inline-flex; align-items: center;
+  padding: 0 var(--sp-2); height: 1.125rem;
+  border-radius: var(--r-chip);
+  background: var(--ink); color: var(--surface);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold); letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Equipment tags and ids: same family, heavier, tabular */
+.tag { font-weight: var(--fw-bold); letter-spacing: 0.005em; }
+.tid { font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
+.tid:hover { color: var(--signal); text-decoration: underline; }
+
+/* Filter chips */
+.fchip {
+  display: inline-flex; align-items: center; gap: var(--sp-3);
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer;
+}
+.fchip:hover { background: var(--surface-sunk); }
+.fchip[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface-sunk); }
+.fchip__n { color: var(--ink-3); font-weight: var(--fw-regular); }
+.swatch { width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+.swatch--today, .ucell--today, .dist__seg--today, .nl__seg--today { background: var(--band-today); color: var(--band-today-ink); }
+.swatch--week, .ucell--week, .dist__seg--week, .nl__seg--week { background: var(--band-week); color: var(--band-week-ink); }
+.swatch--month, .ucell--month, .dist__seg--month, .nl__seg--month { background: var(--band-month); color: var(--band-month-ink); }
+.swatch--shutdown, .ucell--shutdown, .dist__seg--shutdown, .nl__seg--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.swatch--backlog, .ucell--backlog, .dist__seg--backlog, .nl__seg--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+.select select, .search input {
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm);
+}
+.search { position: relative; display: inline-flex; align-items: center; }
+.search .i { position: absolute; left: var(--sp-3); color: var(--ink-3); }
+.search input { padding-left: 2rem; width: 13rem; }
+.search input::placeholder, textarea::placeholder { color: var(--ink-3); }
+
+.prose { max-width: var(--measure); color: var(--ink); }
+kbd {
+  display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--sp-1);
+  border: 1px solid var(--rule-strong); border-bottom-width: 2px; border-radius: var(--r-chip);
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2);
+}
+/* Rules screen */
+.rules {
+  display: grid;
+  grid-template-columns: 15rem minmax(0, 1fr) 20rem;
+  height: calc(100vh - 3.5rem);
+}
+.rnav { overflow: auto; padding: var(--sp-6) var(--sp-4); border-right: 1px solid var(--rule); }
+.rnav a {
+  display: flex; align-items: center; gap: var(--sp-2);
+  min-height: 2rem; padding: var(--sp-1) var(--sp-3);
+  border-radius: var(--r-control);
+  color: var(--ink-2); text-decoration: none; font-size: var(--fs-sm); line-height: var(--lh-sm);
+}
+.rnav a:hover { background: var(--surface-sunk); color: var(--ink); }
+.rnav a[aria-current] { background: var(--surface); color: var(--ink); font-weight: var(--fw-bold); box-shadow: inset 0 0 0 1px var(--rule); }
+.rnav__n { margin-left: auto; color: var(--ink-3); font-size: var(--fs-xs); font-weight: var(--fw-regular); }
+.rnav__types { margin: var(--sp-1) 0 var(--sp-2) var(--sp-3); }
+.rnav__types a { min-height: 1.75rem; font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.rnav .ok { color: var(--ok); }
+
+.rmain { overflow: auto; background: var(--surface); }
+.rhead {
+  display: flex; align-items: flex-end; justify-content: space-between; gap: var(--sp-5);
+  padding: var(--sp-6) var(--sp-7) var(--sp-4);
+  max-width: calc(var(--measure) + 12rem);
+}
+.rhead h1 { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-bold); }
+.rhead__meta { color: var(--ink-2); font-size: var(--fs-sm); line-height: var(--lh-sm); margin-top: var(--sp-1); max-width: 56ch; }
+
+.seg { display: inline-flex; padding: 2px; background: var(--surface-sunk); border: 1px solid var(--rule-strong); border-radius: var(--r-control); flex: none; }
+.seg button { min-height: 2rem; padding: 0 var(--sp-4); background: none; border: 0; border-radius: 4px; font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-2); cursor: pointer; }
+html[data-tab="doc"] #tab-doc, html[data-tab="yaml"] #tab-yaml { background: var(--surface); color: var(--ink); font-weight: var(--fw-bold); box-shadow: 0 0 0 1px var(--rule-strong); }
+html[data-tab="doc"] .yaml, html[data-tab="yaml"] .doc, html[data-tab="yaml"] .legend { display: none; }
+
+.legend {
+  display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3);
+  margin: 0 var(--sp-7); padding: var(--sp-3) 0 var(--sp-4);
+  border-bottom: 1px solid var(--rule);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink-2);
+  max-width: calc(var(--measure) + 12rem);
+}
+.legend__t { font-weight: var(--fw-bold); color: var(--ink); }
+.legend__d { margin-right: var(--sp-3); }
+
+/* Source badges: kind is carried by shape and prefix, not colour */
+.src {
+  display: inline-flex; align-items: center; gap: 0.25em;
+  padding: 0 var(--sp-2); min-height: 1.25rem;
+  border-radius: var(--r-chip);
+  background: var(--surface-sunk); color: var(--ink-2);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: var(--fw-regular);
+  white-space: nowrap; vertical-align: 0.1em;
+  border: 1px solid var(--rule);
+}
+.src b { color: var(--ink); font-weight: var(--fw-bold); }
+.src--brief { background: transparent; }
+.src--inferred { background: transparent; border: 1.5px dashed var(--rule-strong); color: var(--ink); font-weight: var(--fw-bold); font-style: italic; }
+
+.doc { padding: 0 var(--sp-7) var(--sp-9); max-width: calc(var(--measure) + 12rem); }
+.rsec { padding-top: var(--sp-7); }
+.rsec + .rsec { margin-top: var(--sp-5); border-top: 1px solid var(--rule); }
+.rsec h2 { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-heavy); margin-bottom: var(--sp-4); }
+.rsec h3 { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); margin: var(--sp-6) 0 var(--sp-3); }
+.rsec h4 { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-bold); color: var(--ink-2); margin-bottom: var(--sp-2); }
+.h4-gap { margin-top: var(--sp-5); }
+.ghead { display: flex; flex-wrap: wrap; align-items: center; gap: var(--sp-2) var(--sp-3); }
+.ghead__src { display: inline-flex; font-weight: var(--fw-regular); }
+.lede, .concerns { max-width: var(--measure); color: var(--ink-2); }
+.lede { margin-bottom: var(--sp-5); }
+.vnote .i { margin-top: 0.15em; }
+.concerns { margin-bottom: var(--sp-4); }
+
+.bullets { display: grid; gap: var(--sp-3); max-width: calc(var(--measure) + 8rem); }
+.bullets li { position: relative; padding-left: var(--sp-5); }
+.bullets li::before { content: ""; position: absolute; left: var(--sp-1); top: 0.62em; width: 0.375rem; height: 0.375rem; border-radius: 1px; background: var(--ink-3); }
+.b-text { margin-right: var(--sp-3); }
+.b-src { display: inline-flex; flex-wrap: wrap; gap: var(--sp-2); vertical-align: baseline; }
+.updown { display: grid; grid-template-columns: 1fr 1fr; gap: var(--sp-6); }
+.updown .bullets { font-size: var(--fs-sm); line-height: 1.25rem; }
+.updown .b-src { display: flex; margin-top: var(--sp-1); }
+
+.is-edited { background: var(--signal-wash); box-shadow: -0.75rem 0 0 var(--signal-wash), 0.75rem 0 0 var(--signal-wash); border-radius: 2px; }
+.edited-mark { display: inline-flex; align-items: center; padding: 0 var(--sp-2); min-height: 1.25rem; border-radius: var(--r-chip); background: var(--signal); color: var(--signal-ink); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.scope { display: grid; gap: var(--sp-2); justify-items: start; padding: var(--sp-3) 0; margin: 0 0 var(--sp-5); max-width: calc(var(--measure) + 8rem); }
+.src-why { font-size: var(--fs-xs); color: var(--ink-2); }
+
+.pairs { display: grid; gap: var(--sp-3); max-width: calc(var(--measure) + 8rem); }
+.pairs > div { display: grid; grid-template-columns: 11rem 1fr; gap: var(--sp-4); padding: var(--sp-3) 0; border-top: 1px solid var(--rule); }
+.pairs dt { font-weight: var(--fw-bold); font-size: var(--fs-sm); }
+.pairs:not(.pairs--plain) dt { font-family: var(--font-code); font-weight: 600; }
+.pairs .is-warn dd b { text-decoration: underline; text-decoration-thickness: 2px; text-underline-offset: 0.2em; }
+.aside-note { margin-top: var(--sp-4); max-width: var(--measure); font-size: var(--fs-sm); line-height: 1.25rem; color: var(--ink-2); }
+.ranked { counter-reset: r; display: grid; gap: var(--sp-2); max-width: var(--measure); }
+.ranked li { counter-increment: r; display: grid; grid-template-columns: 1.5rem 1fr; }
+.ranked li::before { content: counter(r); font-weight: var(--fw-bold); color: var(--ink-3); }
+
+.etype { padding: var(--sp-5) 0; border-top: 1px solid var(--rule); }
+.etype:first-of-type { border-top: 0; padding-top: var(--sp-2); }
+.etype h3 { display: flex; flex-wrap: wrap; align-items: baseline; gap: var(--sp-2) var(--sp-4); margin: 0 0 var(--sp-3); }
+.etype__ids { font-size: var(--fs-sm); color: var(--ink-2); }
+.etype__ids .tag { font-weight: var(--fw-bold); }
+
+.vtable, .btable { border-collapse: collapse; font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.vtable { width: 100%; max-width: calc(var(--measure) + 8rem); }
+.vtable th { text-align: left; font-size: var(--fs-xs); font-weight: var(--fw-medium); color: var(--ink-2); padding: var(--sp-2) var(--sp-3) var(--sp-2) 0; border-bottom: 1px solid var(--rule-strong); }
+.vtable td { vertical-align: top; padding: var(--sp-3) var(--sp-3) var(--sp-3) 0; border-bottom: 1px solid var(--rule); }
+.vstr { font-family: var(--font-code); font-size: var(--fs-xs); background: var(--surface-sunk); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-chip); white-space: nowrap; }
+.vmean { display: block; color: var(--ink-2); }
+.vnote { display: flex; gap: var(--sp-2); align-items: flex-start; margin-top: var(--sp-2); color: var(--ink); font-weight: var(--fw-medium); }
+.vtable .tag { font-weight: var(--fw-bold); white-space: nowrap; }
+.plain { display: grid; gap: var(--sp-1); }
+
+.ugrid { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-7); align-items: start; margin-top: var(--sp-4); }
+.btable caption { text-align: left; font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink-2); padding-bottom: var(--sp-2); }
+.btable td { padding: var(--sp-1) var(--sp-4) var(--sp-1) 0; }
+.btable .num { font-weight: var(--fw-bold); white-space: nowrap; }
+.bandchip { display: inline-flex; align-items: center; min-height: 1.75rem; padding: 0 var(--sp-3); border-radius: var(--r-chip); font-weight: var(--fw-bold); font-size: var(--fs-sm); white-space: nowrap; }
+.bandchip--today { background: var(--band-today); color: var(--band-today-ink); }
+.bandchip--week { background: var(--band-week); color: var(--band-week-ink); }
+.bandchip--month { background: var(--band-month); color: var(--band-month-ink); }
+.bandchip--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.bandchip--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+.overrides { display: grid; gap: var(--sp-4); max-width: calc(var(--measure) + 8rem); }
+.override { padding: var(--sp-4) var(--sp-5); border: 1px solid var(--rule-strong); border-radius: var(--r-panel); display: grid; gap: var(--sp-2); }
+.override h4 { margin: 0; color: var(--ink); }
+.ident { font-family: var(--font-code); font-size: var(--fs-sm); font-weight: 600; }
+.dl { display: inline-block; min-width: 4.5rem; color: var(--ink-3); font-size: var(--fs-sm); }
+
+.yaml { margin: 0 var(--sp-7) var(--sp-7); border: 1px solid var(--rule-strong); border-radius: var(--r-panel); overflow: hidden; }
+.yaml__bar { display: flex; justify-content: space-between; padding: var(--sp-3) var(--sp-4); background: var(--surface-sunk); border-bottom: 1px solid var(--rule); font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.yaml__state { color: var(--ok); font-weight: var(--fw-medium); }
+.yaml__code { margin: 0; padding: var(--sp-4) var(--sp-4) var(--sp-4) 0; font-family: var(--font-code); font-size: var(--fs-sm); line-height: 1.375rem; counter-reset: ln; overflow-x: auto; background: var(--surface); }
+.yaml__code .ln { display: block; counter-increment: ln; padding-left: 3.75rem; position: relative; white-space: pre; }
+.yaml__code .ln::before { content: counter(ln); position: absolute; left: 0; width: 2.75rem; text-align: right; color: var(--ink-3); }
+
+.raside { overflow: auto; padding: var(--sp-6) var(--sp-5); border-left: 1px solid var(--rule); display: grid; align-content: start; gap: var(--sp-6); }
+.raside h2 { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); margin-bottom: var(--sp-3); }
+.approve { padding: var(--sp-5); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.approve p { font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--ink-2); margin-bottom: var(--sp-4); }
+.btn--block { width: 100%; }
+.checks { display: grid; gap: var(--sp-4); }
+.check { display: grid; grid-template-columns: 1.25rem 1fr; gap: var(--sp-3); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.check .i { width: 1.125rem; height: 1.125rem; margin-top: 1px; }
+.check b { display: block; font-weight: var(--fw-bold); }
+.check span { color: var(--ink-2); }
+.check.is-pass .i { color: var(--ok); }
+.check.is-fail .i { color: var(--danger); }
+.check.is-info .i { color: var(--ink-2); }
+.versions ol { display: grid; gap: 0; }
+.ver { display: grid; grid-template-columns: 2.25rem 1fr; gap: var(--sp-3); padding: var(--sp-3) 0; border-top: 1px solid var(--rule); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ver__n { font-weight: var(--fw-heavy); color: var(--ink-3); }
+.ver b { display: block; }
+.ver span { color: var(--ink-2); }
+.ver.is-current .ver__n { color: var(--signal); }
+
+@media (max-width: 75rem) {
+  .rules { grid-template-columns: minmax(0, 1fr) 18rem; }
+  .rnav { display: none; }
+}
+@media (max-width: 52rem) {
+  .rules { display: block; height: auto; }
+  .topbar { flex-wrap: wrap; gap: var(--sp-3); padding: 0 var(--sp-4); }
+  .ready { order: 3; width: 100%; margin: 0; padding: var(--sp-2) 0 var(--sp-3); justify-content: space-between; gap: var(--sp-2); }
+  .ready__step + .ready__step::before { display: none; }
+  .themebtn { margin-left: auto; }
+  .rmain, .raside { overflow: visible; }
+  .rhead, .doc { padding-left: var(--sp-4); padding-right: var(--sp-4); }
+  .rhead { flex-wrap: wrap; }
+  .legend, .yaml { margin-left: var(--sp-4); margin-right: var(--sp-4); }
+  .updown, .ugrid { grid-template-columns: 1fr; }
+  .pairs > div { grid-template-columns: 1fr; gap: var(--sp-1); }
+  .raside { border: 0; border-top: 1px solid var(--rule); padding: var(--sp-6) var(--sp-4); }
+}
+
+</style>
+</head>
+<body>
+<a class="skip" href="#doc">Skip to rules</a>
+<header class="topbar">
+  <span class="wordmark">Triage</span>
+  <button type="button" class="ws">Bravo platform<svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M4.5 6.5L8 10l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/></svg></button>
+  <ol class="ready" aria-label="Readiness">
+    <li class="ready__step is-done"><span class="ready__n">1</span><span class="ready__t">Data<span class="ready__s">3 files valid</span></span></li>
+    <li class="ready__step is-current" aria-current="step"><span class="ready__n">2</span><span class="ready__t">Rules<span class="ready__s">v3 draft to review</span></span></li>
+    <li class="ready__step"><span class="ready__n">3</span><span class="ready__t">Run<span class="ready__s">Waits for approved rules</span></span></li>
+  </ol>
+  <button type="button" class="iconbtn themebtn" onclick="const r=document.documentElement;r.dataset.theme=(r.dataset.theme==='dark'||(!r.dataset.theme&&matchMedia('(prefers-color-scheme: dark)').matches))?'light':'dark'" aria-label="Switch theme"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg></button>
+</header>
+
+<div class="rules">
+  <nav class="rnav" aria-label="Rules sections">
+    <ul>
+      <li><a href="#s-registry">Registry scores</a></li>
+      <li><a href="#s-general" aria-current="true">General</a></li>
+      <li><a href="#s-types">Equipment types<span class="rnav__n">13 of 13</span></a><ul class="rnav__types"><li><a href="#t-0"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Centrifugal Compressor</a></li><li><a href="#t-1"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Reciprocating Pump</a></li><li><a href="#t-2"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pressure Vessel</a></li><li><a href="#t-3"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pressure Safety Valve</a></li><li><a href="#t-4"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Gas Detector</a></li><li><a href="#t-5"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Level Transmitter</a></li><li><a href="#t-6"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Firewater Pump</a></li><li><a href="#t-7"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Deluge System</a></li><li><a href="#t-8"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Lifeboat</a></li><li><a href="#t-9"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Pedestal Crane</a></li><li><a href="#t-10"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>HVAC Unit</a></li><li><a href="#t-11"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Structure</a></li><li><a href="#t-12"><svg class="i ok" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Piping</a></li></ul></li>
+      <li><a href="#s-vocab">Redundancy vocabulary</a></li>
+      <li><a href="#s-layers">Protection layers and evacuation</a></li>
+      <li><a href="#s-urgency">Urgency</a></li>
+      <li><a href="#s-overrides">Overrides</a></li>
+    </ul>
+  </nav>
+
+  <main class="rmain" id="doc">
+    <div class="rhead">
+      <div>
+        <h1>Rules</h1>
+        <p class="rhead__meta">Version 3, draft. Extracted from domain_knowledge.md and the registry engineer comments, then edited. Nothing comes from the findings file.</p>
+      </div>
+      <div class="seg" role="tablist" aria-label="View">
+        <button role="tab" type="button" id="tab-doc" aria-controls="doc-view" onclick="document.documentElement.dataset.tab='doc'">Document</button>
+        <button role="tab" type="button" id="tab-yaml" aria-controls="yaml-view" onclick="document.documentElement.dataset.tab='yaml'">YAML</button>
+      </div>
+    </div>
+    <div class="legend" aria-label="Source badges">
+      <span class="legend__t">Every rule names its source:</span>
+      <span class="src src--notes">notes: section</span><span class="legend__d">handover notes</span>
+      <span class="src src--registry">registry: <b>K-3401</b></span><span class="legend__d">engineer comment</span>
+      <span class="src src--brief">brief: section 3</span><span class="legend__d">assignment brief</span>
+      <span class="src src--inferred" title="Not stated in any source. A choice made in the rules file.">inferred</span><span class="legend__d">a choice, check it</span>
+    </div>
+    <article class="doc" id="doc-view" role="tabpanel" aria-labelledby="tab-doc">
+<section id="s-registry" class="rsec" aria-labelledby="h-registry">
+  <h2 id="h-registry">Registry scores</h2>
+  <dl class="pairs">
+    <div><dt>criticality_score</dt><dd>1 to 10, <b>10 is most critical</b>. Starting point for impact. <span class="src src--notes">notes: Registry scores</span></dd></div>
+    <div class="is-warn"><dt>reliability_score</dt><dd>1 to 10, <b>10 is highly reliable</b>. Runs opposite to likelihood; new starters routinely invert it. Starting point for likelihood. <span class="src src--notes">notes: Registry scores</span></dd></div>
+  </dl>
+  <p class="aside-note">Neither is sufficient alone; the finding text moves both. A reliable item with a crack in it is still cracked.</p>
+</section>
+
+<section id="s-general" class="rsec" aria-labelledby="h-general">
+  <h2 id="h-general">General</h2>
+  <h3>Likelihood</h3>
+  <p class="concerns">Concerns the item itself, given what the inspection found; how likely it is to stop performing its function in the near term. <span class="src src--notes">notes: The two questions</span></p>
+  <div class="updown">
+    <div><h4 class="ghead">Moves it up<span class=ghead__src><span class="src src--notes">notes: What moves likelihood</span></span></h4><ul class="bullets"><li><span class="b-text">A trend that is still moving</span></li><li><span class="b-text">A repeat of a failure that has already occurred this period</span></li><li><span class="b-text">An active, unmitigated mechanism; corrosion under wet insulation is progressing now</span></li><li><span class="b-text">Detection by a method that only catches late-stage damage; a finding heard or smelled is further advanced than one found by UT</span></li><li><span class="b-text">A confirmed functional failure that has already occurred sits at the top of the range</span><span class=b-src><span class="src src--brief">brief: likelihood definition</span></span></li></ul></div>
+    <div><h4 class="ghead">Moves it down<span class=ghead__src><span class="src src--notes">notes: What moves likelihood</span></span></h4><ul class="bullets"><li><span class="b-text">Design margin</span></li><li><span class="b-text">A measurement inside its acceptance criterion</span></li><li><span class="b-text">An item that is out of service and not required to be in service</span></li></ul></div>
+  </div>
+  <h3>Impact</h3>
+  <p class="concerns">Concerns what happens if it does fail; depends on what the equipment does and what sits behind it, not on the wording of the finding. <span class="src src--notes">notes: The two questions</span></p>
+  <div class="scope is-edited"><span class="edited-mark">Edited in v3</span><p><b>Scope.</b> The consequence of the failure mode this finding points to, not the worst thing this equipment could ever do; a finding that touches only appearance, labels or records has housekeeping consequences even on a critical item.</p><span class="b-src"><span class="src src--inferred" title="Not stated in any source. A choice made in the rules file.">inferred</span><span class="src-why">From the down list below; the first run scored an illegible PSV tag impact 8.</span></span></div>
+  <div class="updown">
+    <div><h4 class="ghead">Moves it up<span class=ghead__src><span class="src src--notes">notes: What moves impact</span></span></h4><ul class="bullets"><li><span class="b-text">Absence of redundancy</span></li><li><span class="b-text">A Safety Critical Element, judged against the major accident it protects against, not repair cost</span></li><li><span class="b-text">A failure that degrades a protection layer rather than causing direct loss</span></li><li><span class="b-text">Delayed or hidden consequences; loss of corrosion inhibitor has no effect today and a substantial effect in eighteen months</span></li><li><span class="b-text">Escalation potential</span></li></ul></div>
+    <div><h4 class="ghead">Moves it down<span class=ghead__src><span class="src src--notes">notes: What moves impact</span></span></h4><ul class="bullets"><li><span class="b-text">Redundancy that is available and capable; if findings exist against both legs of a pair in the same period, the pair is not redundant</span><span class=b-src><span class="src src--notes">notes: What moves impact</span><span class="src src--notes">notes: Two recurring errors</span></span></li><li><span class="b-text">An item that can be bypassed without loss of function</span></li><li><span class="b-text">Atmospheric, non-hydrocarbon, low-energy service</span></li><li><span class="b-text">Consequences limited to housekeeping or appearance</span></li></ul></div>
+  </div>
+  <h3 class="ghead">Pitfalls<span class=ghead__src><span class="src src--notes">notes: Two recurring errors</span></span></h3><ul class="bullets"><li><span class="b-text">Scoring by how severe the description sounds</span><span class=b-src><span class="src src--notes">notes: The two questions</span></span></li><li><span class="b-text">Inverting reliability_score</span><span class=b-src><span class="src src--notes">notes: Registry scores</span></span></li><li><span class="b-text">Crediting redundancy without checking the partner; a partner with a finding this period is not a backup</span></li><li><span class="b-text">Treating one head lost from a voted group as a defeat; it is a degradation, impact moderate, and time-limited because the next failure defeats it</span></li><li><span class="b-text">Resolving uncertainty by picking a mid-range score</span><span class=b-src><span class="src src--notes">notes: Output expectations</span></span></li></ul>
+  <h3>Output expectations</h3>
+  <dl class="pairs pairs--plain">
+    <div><dt>Summary</dt><dd>Covers what is wrong, on what, and why it matters. Readable without the inspection record and not a restatement of the finding text. Never omits a measurement, a repeat occurrence, or a standby already unavailable. <span class="src src--notes">notes: Output expectations</span></dd></div>
+    <div><dt>Recommended action</dt><dd>Names a specific activity; &quot;investigate further&quot; is not sufficient. <span class="src src--brief">brief: section 3</span></dd></div>
+    <div><dt>Uncertainty</dt><dd>State it explicitly; never resolve it with a mid-range score. <span class="src src--notes">notes: Output expectations</span></dd></div>
+  </dl>
+  <h4 class="h4-gap">Loss of confidence, worst first</h4>
+  <ol class="ranked"><li>Confidently incorrect scores on safety critical equipment</li><li>A summary that omits a decision-changing detail</li><li>The same finding scored differently on different days</li><li>Uniform mid-range scores across all findings</li></ol>
+</section>
+
+<section id="s-types" class="rsec" aria-labelledby="h-types">
+  <h2 id="h-types">Equipment types</h2>
+  <p class="lede">One section per equipment type in the registry. The model reads only the section that matches the finding.</p>
+  <section class="etype" id="t-0" aria-labelledby="th-0">
+  <h3 id="th-0">Centrifugal Compressor<span class="etype__ids"><span class="tag">K-3401</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Single train, no spare, no workaround; a trip puts the platform on recycle and cuts production within the hour</span><span class=b-src><span class="src src--registry">registry: <b>K-3401</b></span></span></li><li><span class="b-text">Vibration is trended daily; anything unusual gets a specialist the same day</span><span class=b-src><span class="src src--registry">registry: <b>K-3401</b></span></span></li><li><span class="b-text">A bearing with a vibration trend that has not plateaued is high likelihood</span><span class=b-src><span class="src src--notes">notes: The two questions</span></span></li></ul>
+</section><section class="etype" id="t-1" aria-labelledby="th-1">
+  <h3 id="th-1">Reciprocating Pump<span class="etype__ids"><span class="tag">P-3305</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">On corrosion inhibitor duty, losing the pump does not stop production, but inhibitor starvation starts corrosion in downstream carbon steel within weeks</span><span class=b-src><span class="src src--registry">registry: <b>P-3305</b></span></span></li><li><span class="b-text">The consequence lands six months later on someone else&#x27;s desk; a delayed consequence still moves impact up</span><span class=b-src><span class="src src--registry">registry: <b>P-3305</b></span><span class="src src--notes">notes: What moves impact</span></span></li></ul>
+</section><section class="etype" id="t-2" aria-labelledby="th-2">
+  <h3 id="th-2">Pressure Vessel<span class="etype__ids"><span class="tag">V-1201</span>, <span class="tag">V-1305</span>, <span class="tag">V-2450</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">A hairline coating blister on a thick-walled vessel is low likelihood even on a critical vessel</span><span class=b-src><span class="src src--notes">notes: The two questions</span></span></li><li><span class="b-text">On a pressure boundary vessel, any indication of wall loss, cracking or weeping goes to the integrity engineer regardless of size</span><span class=b-src><span class="src src--registry">registry: <b>V-1201</b></span></span></li><li><span class="b-text">A vessel only used during well testing, which can be isolated and bypassed indefinitely with no production impact, can usually wait for the next planned shutdown</span><span class=b-src><span class="src src--registry">registry: <b>V-1305</b></span></span></li></ul>
+</section><section class="etype" id="t-3" aria-labelledby="th-3">
+  <h3 id="th-3">Pressure Safety Valve<span class="etype__ids"><span class="tag">PSV-1310</span>, <span class="tag">PSV-3420</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Any evidence of passing or weeping is an impairment of a protection layer, not a maintenance nuisance</span><span class=b-src><span class="src src--registry">registry: <b>PSV-1310</b></span><span class="src src--registry">registry: <b>PSV-3420</b></span></span></li><li><span class="b-text">A regulatory clock runs on an impaired relief device from the moment it is known</span><span class=b-src><span class="src src--registry">registry: <b>PSV-1310</b></span></span></li></ul>
+</section><section class="etype" id="t-4" aria-labelledby="th-4">
+  <h3 id="th-4">Gas Detector<span class="etype__ids"><span class="tag">FG-0455</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Calibration drift from salt and humidity is common and mostly benign; a head that fails to respond to test gas is not benign</span><span class=b-src><span class="src src--registry">registry: <b>FG-0455</b></span></span></li><li><span class="b-text">In a voted group, one failed head is degradation with no margin left</span><span class=b-src><span class="src src--notes">notes: Two recurring errors</span></span></li></ul>
+</section><section class="etype" id="t-5" aria-labelledby="th-5">
+  <h3 id="th-5">Level Transmitter<span class="etype__ids"><span class="tag">INST-2150</span>, <span class="tag">INST-2151</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Duty and backup are a duplicated pair installed after a near miss; keeping both legs healthy is the whole point</span><span class=b-src><span class="src src--registry">registry: <b>INST-2150</b></span><span class="src src--registry">registry: <b>INST-2151</b></span></span></li><li><span class="b-text">Operators knowing when a transmitter lies is not a control measure that can be written down</span><span class=b-src><span class="src src--registry">registry: <b>INST-2150</b></span></span></li></ul>
+</section><section class="etype" id="t-6" aria-labelledby="th-6">
+  <h3 id="th-6">Firewater Pump<span class="etype__ids"><span class="tag">FW-8101</span>, <span class="tag">FW-8102</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Failure to start on demand is the scenario the whole fire protection philosophy is built to avoid</span><span class=b-src><span class="src src--registry">registry: <b>FW-8101</b></span></span></li><li><span class="b-text">Both pumps unavailable at once means production shutdown</span><span class=b-src><span class="src src--registry">registry: <b>FW-8101</b></span></span></li><li><span class="b-text">Battery and starting air problems recur on the older pump; it is historically the first to fail a test start</span><span class=b-src><span class="src src--registry">registry: <b>FW-8102</b></span></span></li></ul>
+</section><section class="etype" id="t-7" aria-labelledby="th-7">
+  <h3 id="th-7">Deluge System<span class="etype__ids"><span class="tag">DEL-8300</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Partial nozzle blockage reduces coverage over a specific area; the system looks healthy from the skid but is not delivering where it matters</span><span class=b-src><span class="src src--registry">registry: <b>DEL-8300</b></span></span></li></ul>
+</section><section class="etype" id="t-8" aria-labelledby="th-8">
+  <h3 id="th-8">Lifeboat<span class="etype__ids"><span class="tag">LB-4102</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Any defect that could prevent launch reduces the total evacuation capacity, which is compared against the POB count; that comparison is not negotiable</span><span class=b-src><span class="src src--registry">registry: <b>LB-4102</b></span></span></li></ul>
+</section><section class="etype" id="t-9" aria-labelledby="th-9">
+  <h3 id="th-9">Pedestal Crane<span class="etype__ids"><span class="tag">CR-5001</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Wire rope and hook inspections are governed by the lifting standard, a separate certification regime</span><span class=b-src><span class="src src--registry">registry: <b>CR-5001</b></span></span></li><li><span class="b-text">Out of service means no supply boat offloads, a logistics problem within days</span><span class=b-src><span class="src src--registry">registry: <b>CR-5001</b></span></span></li></ul>
+</section><section class="etype" id="t-10" aria-labelledby="th-10">
+  <h3 id="th-10">HVAC Unit<span class="etype__ids"><span class="tag">HVAC-7201</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">The temporary refuge pressurisation unit keeps people mustering there from breathing hydrocarbons during a gas release; it is not building services</span><span class=b-src><span class="src src--registry">registry: <b>HVAC-7201</b></span></span></li></ul>
+</section><section class="etype" id="t-11" aria-labelledby="th-11">
+  <h3 id="th-11">Structure<span class="etype__ids"><span class="tag">SC-1001</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Coating breakdown reports are frequent and mostly cosmetic; fabric maintenance is chronically behind</span><span class=b-src><span class="src src--registry">registry: <b>SC-1001</b></span></span></li><li><span class="b-text">Section loss at a node or a cracked weld at a primary connection is a completely different severity and is never batched with the coating backlog</span><span class=b-src><span class="src src--registry">registry: <b>SC-1001</b></span></span></li></ul>
+</section><section class="etype" id="t-12" aria-labelledby="th-12">
+  <h3 id="th-12">Piping<span class="etype__ids"><span class="tag">PL-1002</span></span></h3>
+  <ul class="bullets"><li><span class="b-text">Live hydrocarbon line at full wellhead pressure</span><span class=b-src><span class="src src--registry">registry: <b>PL-1002</b></span></span></li><li><span class="b-text">Corrosion under insulation is the known threat and is invisible until the cladding comes off</span><span class=b-src><span class="src src--registry">registry: <b>PL-1002</b></span></span></li></ul>
+</section>
+</section>
+
+<section id="s-vocab" class="rsec" aria-labelledby="h-vocab">
+  <h2 id="h-vocab">Redundancy vocabulary</h2>
+  <p class="lede">Every redundancy string in the registry, and how the pipeline reads it. An unrecognised string stops the run.</p>
+  <table class="vtable">
+    <thead><tr><th scope="col">As written</th><th scope="col">Read as</th><th scope="col">Equipment</th></tr></thead>
+    <tbody><tr><td><code class="vstr">None</code></td><td><b>No redundancy</b><span class="vmean">Impact is not reduced</span></td><td><span class=tag>K-3401</span>, <span class=tag>P-3305</span>, <span class=tag>V-1201</span>, <span class=tag>V-2450</span>, <span class=tag>PSV-1310</span>, <span class=tag>PSV-3420</span>, <span class=tag>DEL-8300</span>, <span class=tag>CR-5001</span>, <span class=tag>HVAC-7201</span>, <span class=tag>SC-1001</span>, <span class=tag>PL-1002</span></td></tr><tr><td><code class="vstr">Yes (bypass available)</code></td><td><b>Bypass available</b><span class="vmean">Can be bypassed without loss of function</span></td><td><span class=tag>V-1305</span></td></tr><tr><td><code class="vstr">Voted 2oo3</code></td><td><b>Voted group</b><span class="vmean">One head lost is degradation; the next failure defeats it</span></td><td><span class=tag>FG-0455</span></td></tr><tr><td><code class="vstr">Duplicated (INST-2151)</code></td><td><b>Redundant partner</b><span class="vmean">Credited only if the partner has no finding this period</span></td><td><span class=tag>INST-2150</span></td></tr><tr><td><code class="vstr">Duplicated (INST-2150)</code></td><td><b>Redundant partner</b><span class="vmean">Credited only if the partner has no finding this period</span></td><td><span class=tag>INST-2151</span></td></tr><tr><td><code class="vstr">N+1 (FW-8102)</code></td><td><b>Redundant partner</b><span class="vmean">Credited only if the partner has no finding this period</span></td><td><span class=tag>FW-8101</span></td></tr><tr><td><code class="vstr">N+1 (FW-8101)</code></td><td><b>Redundant partner</b><span class="vmean">Credited only if the partner has no finding this period</span></td><td><span class=tag>FW-8102</span></td></tr><tr><td><code class="vstr">N+1 (LB-4101)</code></td><td><b>Redundant partner</b><span class="vmean">Credited only if the partner has no finding this period</span><span class="vnote"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 4.6v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>LB-4101 is not in the registry. No redundancy credit.</span></td><td><span class=tag>LB-4102</span></td></tr></tbody>
+  </table>
+</section>
+
+<section id="s-layers" class="rsec" aria-labelledby="h-layers">
+  <h2 id="h-layers">Protection layers and evacuation</h2>
+  <p class="lede">The overrides fire only for these types. The notes name the concepts; the mapping to types comes from the registry comments. <span class="src src--inferred" title="Not stated in any source. A choice made in the rules file.">inferred</span></p>
+  <div class="updown">
+    <div><h4>Protection layer types</h4><ul class="plain"><li>Pressure Safety Valve</li><li>Gas Detector</li><li>Deluge System</li><li>HVAC Unit</li><li>Firewater Pump</li></ul></div>
+    <div><h4>Evacuation types</h4><ul class="plain"><li>Lifeboat</li></ul></div>
+  </div>
+</section>
+
+<section id="s-urgency" class="rsec" aria-labelledby="h-urgency">
+  <h2 id="h-urgency">Urgency</h2>
+  <p class="lede">Urgency is computed in code, never by the model. The notes give the shape; the numbers are choices. <span class="src src--inferred" title="Not stated in any source. A choice made in the rules file.">inferred</span><span class="src src--notes">notes: Urgency</span></p>
+  <div class="ugrid">
+    <table class="btable"><caption>Bands</caption><tbody><tr><td><span class="bandchip bandchip--today">Today</span></td><td class="num">9 to 10</td></tr><tr><td><span class="bandchip bandchip--week">This week</span></td><td class="num">7 to 8</td></tr><tr><td><span class="bandchip bandchip--month">This month</span></td><td class="num">5 to 6</td></tr><tr><td><span class="bandchip bandchip--shutdown">Next planned shutdown</span></td><td class="num">3 to 4</td></tr><tr><td><span class="bandchip bandchip--backlog">Backlog</span></td><td class="num">1 to 2</td></tr></tbody></table>
+    <dl class="pairs pairs--plain">
+      <div><dt>Weights</dt><dd><b class="num">0.7</b> impact, <b class="num">0.3</b> likelihood</dd></div>
+      <div><dt>Near-certain gate</dt><dd>Likelihood at least <b>9</b> lifts the base to at least impact</dd></div>
+      <div><dt>Inconsequential cap</dt><dd>Impact at most <b>3</b> caps urgency at <b>4</b></dd></div>
+      <div><dt>SCE floor</dt><dd>Impact at least <b>7</b> on an SCE floors urgency at <b>7</b></dd></div>
+    </dl>
+  </div>
+</section>
+
+<section id="s-overrides" class="rsec" aria-labelledby="h-overrides">
+  <h2 id="h-overrides">Overrides</h2>
+  <p class="lede">Overrides lift the derived urgency to a floor; they never lower it. Floor 9, not 10, so two today items can still be ordered. <span class="src src--notes">notes: Urgency</span></p>
+  <ul class="overrides"><li class="override">
+  <h4><code class="ident">protection_layer_impaired_no_deviation</code></h4>
+  <p><span class="dl">When</span> a protection layer is impaired and no deviation is recorded</p>
+  <p><span class="dl">Because</span> the installation is out of compliance from the moment the impairment is known</p>
+  <p><span class="dl">Effect</span> urgency at least <b>9</b></p>
+</li><li class="override">
+  <h4><code class="ident">evacuation_below_pob</code></h4>
+  <p><span class="dl">When</span> evacuation capacity is reduced below the POB count</p>
+  <p><span class="dl">Because</span> same compliance logic as an impaired protection layer</p>
+  <p><span class="dl">Effect</span> urgency at least <b>9</b></p>
+</li></ul>
+</section>
+</article>
+    <div class="yaml" id="yaml-view" role="tabpanel" aria-labelledby="tab-yaml">
+      <div class="yaml__bar"><span>rules.yml</span><span class="yaml__state">Valid YAML. Coverage passes.</span></div>
+      <pre class="yaml__code" contenteditable="true" spellcheck="false" aria-label="rules.yml editor"><span class="ln"># Triage rules for the Bravo platform.</span><span class="ln">#</span><span class="ln"># Every line names its source in a trailing comment:</span><span class="ln">#   notes     = domain_knowledge.md, section named</span><span class="ln">#   brief     = README.md, section 3 definitions</span><span class="ln">#   registry  = equipment_registry.csv engineer_comment, equipment id named</span><span class="ln">#   INFERRED  = not stated in any source; a choice made here</span><span class="ln"># Nothing comes from the findings file.</span><span class="ln">#</span><span class="ln"># Two readers: the model gets `general`, `registry_scores` and the matching</span><span class="ln"># `by_equipment_type` section rendered as text. The code reads</span><span class="ln"># `protection_layer_types`, `evacuation_types`, `urgency_bands`, `urgency`</span><span class="ln"># and `overrides`. Review triggers are code (steps.py, review).</span><span class="ln"> </span><span class="ln">version: 1</span><span class="ln">source: domain_knowledge.md and equipment_registry.csv engineer_comment</span><span class="ln"> </span><span class="ln">registry_scores: # notes: Registry scores</span><span class="ln">  criticality_score:</span><span class="ln">    range: [ 1, 10 ]</span><span class="ln">    direction: normal        # 10 = most critical</span><span class="ln">    starting_point_for: impact</span><span class="ln">  reliability_score:</span><span class="ln">    range: [ 1, 10 ]</span><span class="ln">    direction: inverted      # 10 = highly reliable, 1 = fails frequently</span><span class="ln">    starting_point_for: likelihood</span><span class="ln">    warning: runs opposite to likelihood; new starters routinely invert it</span><span class="ln">  note: neither is sufficient alone; the finding text moves both. A reliable item with a crack in it is still cracked.</span><span class="ln"> </span><span class="ln">general:</span><span class="ln">  likelihood: # notes: The two questions</span><span class="ln">    concerns: the item itself, given what the inspection found; how likely it is to stop performing its function in the near term</span><span class="ln">    up:</span><span class="ln">      - a trend that is still moving                                       # notes: What moves likelihood</span><span class="ln">      - a repeat of a failure that has already occurred this period        # notes: What moves likelihood</span><span class="ln">      - an active, unmitigated mechanism; corrosion under wet insulation is progressing now   # notes: What moves likelihood</span><span class="ln">      - detection by a method that only catches late-stage damage; a finding heard or smelled is further advanced than one found by UT   # notes: What moves likelihood</span><span class="ln">      - a confirmed functional failure that has already occurred sits at the top of the range   # brief: likelihood definition</span><span class="ln">    down:</span><span class="ln">      - design margin                                                      # notes: What moves likelihood</span><span class="ln">      - a measurement inside its acceptance criterion                      # notes: What moves likelihood</span><span class="ln">      - an item that is out of service and not required to be in service  # notes: What moves likelihood</span><span class="ln"> </span><span class="ln">  impact: # notes: The two questions</span><span class="ln">    concerns: what happens if it does fail; depends on what the equipment does and what sits behind it, not on the wording of the finding</span><span class="ln">    scope: the consequence of the failure mode this finding points to, not the worst thing this equipment could ever do; a finding that touches only appearance, labels or records has housekeeping consequences even on a critical item   # INFERRED from the down list below; first run scored an illegible PSV tag impact 8</span><span class="ln">    up:</span><span class="ln">      - absence of redundancy                                              # notes: What moves impact</span><span class="ln">      - a Safety Critical Element, judged against the major accident it protects against, not repair cost   # notes: What moves impact</span><span class="ln">      - a failure that degrades a protection layer rather than causing direct loss   # notes: What moves impact</span><span class="ln">      - delayed or hidden consequences; loss of corrosion inhibitor has no effect today and a substantial effect in eighteen months   # notes: What moves impact</span><span class="ln">      - escalation potential                                               # notes: What moves impact</span><span class="ln">    down:</span><span class="ln">      - redundancy that is available and capable; if findings exist against both legs of a pair in the same period, the pair is not redundant   # notes: What moves impact, Two recurring errors</span><span class="ln">      - an item that can be bypassed without loss of function              # notes: What moves impact</span><span class="ln">      - atmospheric, non-hydrocarbon, low-energy service                   # notes: What moves impact</span><span class="ln">      - consequences limited to housekeeping or appearance                 # notes: What moves impact</span><span class="ln"> </span><span class="ln">  pitfalls:</span><span class="ln">    - scoring by how severe the description sounds                        # notes: The two questions</span><span class="ln">    - inverting reliability_score                                          # notes: Registry scores</span><span class="ln">    - crediting redundancy without checking the partner; a partner with a finding this period is not a backup   # notes: Two recurring errors</span><span class="ln">    - treating one head lost from a voted group as a defeat; it is a degradation, impact moderate, and time-limited because the next failure defeats it   # notes: Two recurring errors</span><span class="ln">    - resolving uncertainty by picking a mid-range score                   # notes: Output expectations</span><span class="ln"> </span><span class="ln">  output: # notes: Output expectations</span><span class="ln">    summary:</span><span class="ln">      must_cover: [ what is wrong, on what, why it matters ]</span><span class="ln">      readable_without_inspection_record: true</span><span class="ln">      not_a_restatement_of_finding_text: true</span><span class="ln">      must_not_omit: [ a measurement, a repeat occurrence, a standby already unavailable ]</span><span class="ln">    recommended_action: names a specific activity; &quot;investigate further&quot; is not sufficient   # brief: section 3</span><span class="ln">    uncertainty: state it explicitly; never resolve it with a mid-range score</span><span class="ln">    loss_of_confidence_causes: # ordered, worst first</span><span class="ln">      - confidently incorrect scores on safety critical equipment</span><span class="ln">      - a summary that omits a decision-changing detail</span><span class="ln">      - the same finding scored differently on different days</span><span class="ln">      - uniform mid-range scores across all findings</span><span class="ln"> </span><span class="ln"># Keys must match equipment_type in the registry exactly; the code selects by it.</span><span class="ln">by_equipment_type:</span><span class="ln">  Centrifugal Compressor:</span><span class="ln">    - single train, no spare, no workaround; a trip puts the platform on recycle and cuts production within the hour   # registry: K-3401</span><span class="ln">    - vibration is trended daily; anything unusual gets a specialist the same day   # registry: K-3401</span><span class="ln">    - a bearing with a vibration trend that has not plateaued is high likelihood   # notes: The two questions</span><span class="ln"> </span><span class="ln">  Reciprocating Pump:</span><span class="ln">    - on corrosion inhibitor duty, losing the pump does not stop production, but inhibitor starvation starts corrosion in downstream carbon steel within weeks   # registry: P-3305</span><span class="ln">    - the consequence lands six months later on someone else&#x27;s desk; a delayed consequence still moves impact up   # registry: P-3305, notes: What moves impact</span><span class="ln"> </span><span class="ln">  Pressure Vessel:</span><span class="ln">    - a hairline coating blister on a thick-walled vessel is low likelihood even on a critical vessel   # notes: The two questions</span><span class="ln">    - on a pressure boundary vessel, any indication of wall loss, cracking or weeping goes to the integrity engineer regardless of size   # registry: V-1201</span><span class="ln">    - a vessel only used during well testing, which can be isolated and bypassed indefinitely with no production impact, can usually wait for the next planned shutdown   # registry: V-1305</span><span class="ln"> </span><span class="ln">  Pressure Safety Valve:</span><span class="ln">    - any evidence of passing or weeping is an impairment of a protection layer, not a maintenance nuisance   # registry: PSV-1310, PSV-3420</span><span class="ln">    - a regulatory clock runs on an impaired relief device from the moment it is known   # registry: PSV-1310</span><span class="ln"> </span><span class="ln">  Gas Detector:</span><span class="ln">    - calibration drift from salt and humidity is common and mostly benign; a head that fails to respond to test gas is not benign   # registry: FG-0455</span><span class="ln">    - in a voted group, one failed head is degradation with no margin left   # notes: Two recurring errors</span><span class="ln"> </span><span class="ln">  Level Transmitter:</span><span class="ln">    - duty and backup are a duplicated pair installed after a near miss; keeping both legs healthy is the whole point   # registry: INST-2150, INST-2151</span><span class="ln">    - operators knowing when a transmitter lies is not a control measure that can be written down   # registry: INST-2150</span><span class="ln"> </span><span class="ln">  Firewater Pump:</span><span class="ln">    - failure to start on demand is the scenario the whole fire protection philosophy is built to avoid   # registry: FW-8101</span><span class="ln">    - both pumps unavailable at once means production shutdown              # registry: FW-8101</span><span class="ln">    - battery and starting air problems recur on the older pump; it is historically the first to fail a test start   # registry: FW-8102</span><span class="ln"> </span><span class="ln">  Deluge System:</span><span class="ln">    - partial nozzle blockage reduces coverage over a specific area; the system looks healthy from the skid but is not delivering where it matters   # registry: DEL-8300</span><span class="ln"> </span><span class="ln">  Lifeboat:</span><span class="ln">    - any defect that could prevent launch reduces the total evacuation capacity, which is compared against the POB count; that comparison is not negotiable   # registry: LB-4102</span><span class="ln"> </span><span class="ln">  Pedestal Crane:</span><span class="ln">    - wire rope and hook inspections are governed by the lifting standard, a separate certification regime   # registry: CR-5001</span><span class="ln">    - out of service means no supply boat offloads, a logistics problem within days   # registry: CR-5001</span><span class="ln"> </span><span class="ln">  HVAC Unit:</span><span class="ln">    - the temporary refuge pressurisation unit keeps people mustering there from breathing hydrocarbons during a gas release; it is not building services   # registry: HVAC-7201</span><span class="ln"> </span><span class="ln">  Structure:</span><span class="ln">    - coating breakdown reports are frequent and mostly cosmetic; fabric maintenance is chronically behind   # registry: SC-1001</span><span class="ln">    - section loss at a node or a cracked weld at a primary connection is a completely different severity and is never batched with the coating backlog   # registry: SC-1001</span><span class="ln"> </span><span class="ln">  Piping:</span><span class="ln">    - live hydrocarbon line at full wellhead pressure                       # registry: PL-1002</span><span class="ln">    - corrosion under insulation is the known threat and is invisible until the cladding comes off   # registry: PL-1002</span><span class="ln"> </span><span class="ln"># Which equipment types the two override rules apply to. The notes name the</span><span class="ln"># concepts (protection layer, evacuation capacity); the mapping to types is</span><span class="ln"># INFERRED from the registry comments.</span><span class="ln">protection_layer_types: # notes: Urgency, What moves impact</span><span class="ln">  - Pressure Safety Valve</span><span class="ln">  - Gas Detector</span><span class="ln">  - Deluge System</span><span class="ln">  - HVAC Unit</span><span class="ln">  - Firewater Pump</span><span class="ln"> </span><span class="ln">evacuation_types: # notes: Urgency; registry: LB-4102</span><span class="ln">  - Lifeboat</span><span class="ln"> </span><span class="ln">urgency_bands: # notes: Urgency</span><span class="ln">  today: [ 9, 10 ]</span><span class="ln">  this_week: [ 7, 8 ]</span><span class="ln">  this_month: [ 5, 6 ]</span><span class="ln">  next_planned_shutdown: [ 3, 4 ]</span><span class="ln">  backlog: [ 1, 2 ]</span><span class="ln"> </span><span class="ln">urgency: # INFERRED; notes: Urgency gives the shape, not the numbers</span><span class="ln">  weights: { impact: 0.7, likelihood: 0.3 }</span><span class="ln">  near_certain: { likelihood_at_least: 9 }        # base is lifted to at least impact</span><span class="ln">  inconsequential: { impact_at_most: 3, urgency_at_most: 4 }</span><span class="ln">  sce_floor: { impact_at_least: 7, urgency_at_least: 7 }</span><span class="ln"> </span><span class="ln"># Overrides lift the derived urgency to at least the floor; they never lower</span><span class="ln"># it. Floor 9, not a flat 10, so two &quot;today&quot; items can still be ordered.   # INFERRED</span><span class="ln">overrides:</span><span class="ln">  - id: protection_layer_impaired_no_deviation</span><span class="ln">    condition: a protection layer is impaired and no deviation is recorded   # notes: Urgency</span><span class="ln">    reason: the installation is out of compliance from the moment the impairment is known</span><span class="ln">    floor: 9</span><span class="ln">  - id: evacuation_below_pob</span><span class="ln">    condition: evacuation capacity is reduced below the POB count            # notes: Urgency</span><span class="ln">    reason: same compliance logic as an impaired protection layer</span><span class="ln">    floor: 9</span></pre>
+    </div>
+  </main>
+
+  <aside class="raside" aria-label="Review and approve">
+    <section class="approve">
+      <h2>Approve version 3</h2>
+      <p>Approved rules are used by the next run. Tickets already drafted with v2 keep their scores.</p>
+      <button type="button" class="btn btn--primary btn--block"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg>Approve v3</button>
+    </section>
+    <section class="coverage" aria-labelledby="h-cov">
+      <h2 id="h-cov">Coverage</h2>
+      <ul class="checks">
+        <li class="check is-pass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>Every equipment type has a section</b><span>13 of 13 types in the registry</span></div></li>
+        <li class="check is-pass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>Every redundancy string is classified</b><span>8 of 8 strings</span></div></li>
+        <li class="check is-pass"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/></svg><div><b>Override types exist in the registry</b><span>6 of 6 types</span></div></li>
+        <li class="check is-info"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7v4M8 4.6v.1" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg><div><b>1 partner cannot be verified</b><span>LB-4101 is named by LB-4102 but has no registry row</span></div></li>
+      </ul>
+    </section>
+    <section class="versions" aria-labelledby="h-ver">
+      <h2 id="h-ver">Versions</h2>
+      <ol>
+        <li class="ver is-current"><span class="ver__n">v3</span><div><b>Draft</b><span>Edited 17 Oct 2026, 09:12. Added the impact scope line.</span></div></li>
+        <li class="ver"><span class="ver__n">v2</span><div><b>Approved</b><span>16 Oct 2026, 11:40. Used by the run of 16 Oct 13:24.</span></div></li>
+        <li class="ver"><span class="ver__n">v1</span><div><b>Extracted</b><span>15 Oct 2026, 16:05. Superseded.</span></div></li>
+      </ol>
+    </section>
+  </aside>
+</div>
+</body>
+</html>

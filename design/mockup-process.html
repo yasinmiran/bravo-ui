@@ -1,0 +1,1175 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Process 3, Bravo platform, Triage</title>
+<style>
+/* Triage design tokens.
+ *
+ * Fonts: Atkinson Hyperlegible Next for everything, Atkinson Hyperlegible Mono
+ * only inside the YAML editor. In React prefer the <link> in index.html over
+ * this @import so the font request starts before the CSS parses:
+ *
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap" rel="stylesheet">
+ */
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* Base palette, light. Neutrals derive from RAL 7035 (enclosure grey) and
+     RAL 7016 (anthracite); interaction is RAL 5005 (signal blue). */
+  --plane: #e9ece9;          /* page background, enclosure grey */
+  --surface: #f8f9f7;        /* panels, table body */
+  --surface-sunk: #eff1ee;   /* table header, code, badges */
+  --ink: #22292b;            /* anthracite, primary text */
+  --ink-2: #4b5558;          /* secondary text */
+  --ink-3: #5d676a;          /* muted text; AA on plane, surface and sunk */
+  --rule: #d5dad7;           /* hairline dividers, decorative only */
+  --rule-strong: #7f8987;    /* input and control boundaries, 3:1 */
+  --signal: #1f4f8f;         /* links, primary buttons, focus, selection */
+  --signal-ink: #ffffff;     /* text on --signal */
+  --signal-wash: #e1e9f4;    /* selected row */
+
+  /* Semantic. Never decorative; always paired with an icon and a word. */
+  --ok: #1d6e45;             /* approved, validation passed */
+  --ok-wash: #e2efe7;
+  --danger: #a3164f;         /* rejected, validation failed; crimson, kept clear of the urgency ramp */
+  --danger-wash: #f6e3ea;
+
+  /* Urgency bands. The only warm colour in the product. One hue (safety
+     orange), ordered by distance from the surface: today sits furthest from
+     the page in both themes, so the same band is rust here and peach in dark.
+     Validated with the dataviz ordinal checks against --surface. */
+  --band-today: #9d2800;
+  --band-today-ink: #ffffff;
+  --band-week: #be4500;
+  --band-week-ink: #ffffff;
+  --band-month: #d36c1b;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #d58d52;
+  --band-shutdown-ink: #1a2023;
+  --band-backlog: #d3ab85;
+  --band-backlog-ink: #1a2023;
+
+  /* Type */
+  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-code: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+
+  --fs-xs: 0.75rem;   --lh-xs: 1rem;        /* 12/16 badges, table meta */
+  --fs-sm: 0.8125rem; --lh-sm: 1.125rem;    /* 13/18 secondary, table cells */
+  --fs-base: 0.9375rem; --lh-base: 1.4rem;  /* 15/22.4 body, rationale */
+  --fs-md: 1.0625rem; --lh-md: 1.5rem;      /* 17/24 panel headings, band strips */
+  --fs-lg: 1.25rem;   --lh-lg: 1.625rem;    /* 20/26 screen titles, tag in detail */
+  --fs-xl: 1.5rem;    --lh-xl: 1.875rem;    /* 24/30 score numerals */
+  --fs-2xl: 2rem;     --lh-2xl: 2.25rem;    /* 32/36 rare */
+  --fs-num: 3rem;     --lh-num: 1;          /* 48 urgency numeral in detail */
+
+  --fw-regular: 400;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --fw-heavy: 780;   /* numerals only */
+
+  --measure: 68ch;   /* prose line length */
+
+  /* Space, 4px base */
+  --sp-1: 0.125rem;  /* 2 */
+  --sp-2: 0.25rem;   /* 4 */
+  --sp-3: 0.5rem;    /* 8 */
+  --sp-4: 0.75rem;   /* 12 */
+  --sp-5: 1rem;      /* 16 */
+  --sp-6: 1.5rem;    /* 24 */
+  --sp-7: 2rem;      /* 32 */
+  --sp-8: 3rem;      /* 48 */
+  --sp-9: 4rem;      /* 64 */
+
+  /* Radius by role, not one radius everywhere */
+  --r-strip: 0;      /* table rows, band strips */
+  --r-chip: 3px;     /* chips, badges, score cells */
+  --r-control: 6px;  /* buttons, inputs */
+  --r-panel: 10px;   /* panels, sheets, dialogs */
+
+  --shadow-overlay: 0 8px 24px rgb(34 41 43 / 0.18), 0 1px 3px rgb(34 41 43 / 0.12);
+
+  --hit: 2.75rem;    /* 44px minimum touch target */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--signal);
+
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;            /* layout moves on the lane grid, progress bar */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #1a2023;
+    --surface: #1e2427;
+    --surface-sunk: #262e31;
+    --ink: #e6e9e6;
+    --ink-2: #b4bdbc;
+    --ink-3: #929c9d;
+    --rule: #333c3f;
+    --rule-strong: #6f797c;
+    --signal: #8fb6ee;
+    --signal-ink: #10243f;
+    --signal-wash: #223246;
+    --ok: #72c99d;
+    --ok-wash: #1d3329;
+    --danger: #f28fb4;
+    --danger-wash: #3d2330;
+    --band-today: #ffac5a;
+    --band-today-ink: #1a2023;
+    --band-week: #f68e40;
+    --band-week-ink: #1a2023;
+    --band-month: #de7133;
+    --band-month-ink: #1a2023;
+    --band-shutdown: #af5b39;
+    --band-shutdown-ink: #ffffff;
+    --band-backlog: #824c39;
+    --band-backlog-ink: #ffffff;
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #1a2023;
+  --surface: #1e2427;
+  --surface-sunk: #262e31;
+  --ink: #e6e9e6;
+  --ink-2: #b4bdbc;
+  --ink-3: #929c9d;
+  --rule: #333c3f;
+  --rule-strong: #6f797c;
+  --signal: #8fb6ee;
+  --signal-ink: #10243f;
+  --signal-wash: #223246;
+  --ok: #72c99d;
+  --ok-wash: #1d3329;
+  --danger: #f28fb4;
+  --danger-wash: #3d2330;
+  --band-today: #ffac5a;
+  --band-today-ink: #1a2023;
+  --band-week: #f68e40;
+  --band-week-ink: #1a2023;
+  --band-month: #de7133;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #af5b39;
+  --band-shutdown-ink: #ffffff;
+  --band-backlog: #824c39;
+  --band-backlog-ink: #ffffff;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Shared components */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, p, ol, ul, dl, dd { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--signal); text-underline-offset: 0.18em; }
+abbr[title] { text-decoration: none; }
+.i { width: 1em; height: 1em; flex: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: var(--sp-3); top: -3rem; background: var(--signal); color: var(--signal-ink); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-control); z-index: 10; }
+.skip:focus { top: var(--sp-3); }
+
+/* Top bar with the readiness strip */
+.topbar {
+  display: flex; align-items: center; gap: var(--sp-6);
+  padding: 0 var(--sp-6);
+  min-height: 3.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.wordmark { font-weight: var(--fw-heavy); font-size: var(--fs-md); letter-spacing: -0.01em; }
+.ws {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: var(--hit); padding: 0 var(--sp-3);
+  background: none; border: 0; border-radius: var(--r-control);
+  font-weight: var(--fw-medium); cursor: pointer;
+}
+.ws:hover { background: var(--surface-sunk); }
+.ready { display: flex; align-items: center; gap: var(--sp-5); margin-left: auto; }
+.ready__step { display: flex; align-items: center; gap: var(--sp-3); color: var(--ink-3); }
+.ready__step + .ready__step::before {
+  content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); margin-right: var(--sp-2);
+}
+.ready__n {
+  display: grid; place-items: center;
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+}
+.ready__step.is-done { color: var(--ink); }
+.ready__step.is-done .ready__n { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.ready__step.is-current .ready__t { font-weight: var(--fw-bold); }
+.ready__t { display: flex; flex-direction: column; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ready__s { font-weight: var(--fw-regular); color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.iconbtn {
+  display: inline-grid; place-items: center;
+  width: var(--hit); height: var(--hit);
+  background: none; border: 0; border-radius: var(--r-control); color: var(--ink-2); cursor: pointer;
+}
+.iconbtn:hover { background: var(--surface-sunk); color: var(--ink); }
+
+/* Buttons. Never warm: orange belongs to urgency. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  min-height: var(--hit); padding: 0 var(--sp-5);
+  border-radius: var(--r-control); border: 1px solid transparent;
+  font-weight: var(--fw-bold); font-size: var(--fs-base); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.btn--primary { background: var(--signal); color: var(--signal-ink); }
+.btn--primary:hover { background: color-mix(in oklab, var(--signal) 88%, var(--ink)); }
+.btn--secondary { background: var(--surface); border-color: var(--rule-strong); color: var(--ink); }
+.btn--secondary:hover { background: var(--surface-sunk); }
+.btn--quiet { background: transparent; border-color: var(--rule-strong); color: var(--ink); }
+.btn--quiet:hover { background: var(--surface-sunk); }
+
+/* SCE: the one badge that is always filled, because it is the primary review trigger */
+.sce {
+  display: inline-flex; align-items: center;
+  padding: 0 var(--sp-2); height: 1.125rem;
+  border-radius: var(--r-chip);
+  background: var(--ink); color: var(--surface);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold); letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Equipment tags and ids: same family, heavier, tabular */
+.tag { font-weight: var(--fw-bold); letter-spacing: 0.005em; }
+.tid { font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
+.tid:hover { color: var(--signal); text-decoration: underline; }
+
+/* Filter chips */
+.fchip {
+  display: inline-flex; align-items: center; gap: var(--sp-3);
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer;
+}
+.fchip:hover { background: var(--surface-sunk); }
+.fchip[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface-sunk); }
+.fchip__n { color: var(--ink-3); font-weight: var(--fw-regular); }
+.swatch { width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+.swatch--today, .ucell--today, .dist__seg--today, .nl__seg--today { background: var(--band-today); color: var(--band-today-ink); }
+.swatch--week, .ucell--week, .dist__seg--week, .nl__seg--week { background: var(--band-week); color: var(--band-week-ink); }
+.swatch--month, .ucell--month, .dist__seg--month, .nl__seg--month { background: var(--band-month); color: var(--band-month-ink); }
+.swatch--shutdown, .ucell--shutdown, .dist__seg--shutdown, .nl__seg--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.swatch--backlog, .ucell--backlog, .dist__seg--backlog, .nl__seg--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+.select select, .search input {
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm);
+}
+.search { position: relative; display: inline-flex; align-items: center; }
+.search .i { position: absolute; left: var(--sp-3); color: var(--ink-3); }
+.search input { padding-left: 2rem; width: 13rem; }
+.search input::placeholder, textarea::placeholder { color: var(--ink-3); }
+
+.prose { max-width: var(--measure); color: var(--ink); }
+kbd {
+  display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--sp-1);
+  border: 1px solid var(--rule-strong); border-bottom-width: 2px; border-radius: var(--r-chip);
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2);
+}
+
+
+/* ---- Components added for the workspace steps, the process view and login ---- */
+
+/* The readiness strip becomes the step navigation. Each step is a link; a
+   locked step is a disabled button with its reason underneath. */
+.ready__step { text-decoration: none; }
+a.ready__step, button.ready__step {
+  min-height: var(--hit); padding: 0 var(--sp-2); margin: 0 calc(-1 * var(--sp-2));
+  border: 0; background: none; border-radius: var(--r-control); cursor: pointer;
+}
+a.ready__step:hover { background: var(--surface-sunk); }
+.ready li { display: flex; align-items: center; gap: var(--sp-5); }
+.ready li + li::before { content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); }
+.ready__step.is-locked { cursor: not-allowed; color: var(--ink-3); }
+.ready__step.is-locked .ready__n { border-style: dashed; }
+.ready__step.is-current .ready__n { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ink); }
+.ready__step.is-stale .ready__n { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.ready__s .i { width: 0.75rem; height: 0.75rem; vertical-align: -0.1em; margin-right: 2px; }
+.ready__s.is-danger { color: var(--danger); font-weight: var(--fw-medium); }
+
+/* Status badge: the ticketing-system cue. Outline only, always icon plus word.
+   Ink means the machine finished, ok means a human approved or a check passed,
+   danger means it failed. No fills, so nothing competes with a band. */
+.status {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: 1.5rem; padding: 0 var(--sp-3) 0 var(--sp-2);
+  border: 1px solid var(--rule-strong); border-radius: var(--r-chip);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: var(--fw-bold);
+  color: var(--ink); background: var(--surface); white-space: nowrap;
+}
+.status .i { width: 0.875rem; height: 0.875rem; }
+.status--muted { color: var(--ink-3); border-style: dashed; font-weight: var(--fw-medium); }
+.status--ok { color: var(--ok); }
+.status--danger { color: var(--danger); }
+.status--lg { min-height: 1.75rem; font-size: var(--fs-sm); padding: 0 var(--sp-4) 0 var(--sp-3); }
+
+/* Running marker. The arc turns while work is in flight; under reduced motion
+   it stops and the word beside it still says Running. */
+.spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* Page head shared by the step and process screens */
+.phead { padding: var(--sp-6) var(--sp-7) var(--sp-5); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-4) var(--sp-6); }
+.phead h1 { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-bold); display: flex; align-items: center; gap: var(--sp-4); }
+.phead__meta { color: var(--ink-2); font-size: var(--fs-sm); line-height: var(--lh-sm); margin-top: var(--sp-2); max-width: 72ch; }
+.phead__actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+.crumb { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-2); text-decoration: none; margin-bottom: var(--sp-2); }
+.crumb:hover { color: var(--signal); text-decoration: underline; }
+
+/* Event ladder: one row per event, a rail through the icons. Built straight from
+   {ts, stage, status, title, detail}. */
+.ladder { display: grid; position: relative; }
+.ev { display: grid; grid-template-columns: 4.25rem 1.5rem minmax(0, 1fr); column-gap: var(--sp-3); position: relative; padding-bottom: var(--sp-4); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ev::before { content: ""; position: absolute; left: calc(4.25rem + var(--sp-3) + 0.75rem - 0.5px); top: 1.375rem; bottom: 0; width: 1px; background: var(--rule-strong); }
+.ev:last-child::before { display: none; }
+.ev__t { text-align: right; color: var(--ink-3); font-size: var(--fs-xs); padding-top: 2px; }
+.ev__i { display: grid; place-items: center; width: 1.5rem; height: 1.25rem; position: relative; z-index: 1; }
+.ev__i .i { width: 1rem; height: 1rem; background: var(--surface); border-radius: 50%; }
+.ev__b { min-width: 0; }
+.ev__title { font-weight: var(--fw-bold); color: var(--ink); }
+.ev__stage { font-weight: var(--fw-regular); color: var(--ink-3); margin-right: var(--sp-2); }
+.ev__d { color: var(--ink-2); margin-top: var(--sp-1); max-width: var(--measure); }
+.ev--done .ev__i { color: var(--ink); }
+.ev--pass .ev__i { color: var(--ok); }
+.ev--fail .ev__i { color: var(--danger); }
+.ev--fail .ev__title { color: var(--danger); }
+.ev--start .ev__i, .ev--info .ev__i { color: var(--ink-2); }
+.ev--pending { padding-bottom: var(--sp-3); }
+.ev--pending .ev__i, .ev--pending .ev__title { color: var(--ink-3); font-weight: var(--fw-medium); }
+.ev--pending::before { background: none; border-left: 1px dashed var(--rule-strong); }
+.ev--live .ev__title::after { content: ""; }
+.kv { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-5); margin-top: var(--sp-1); color: var(--ink-2); }
+.kv b { color: var(--ink); font-weight: var(--fw-bold); }
+.err { display: block; margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink); overflow-wrap: anywhere; }
+.subchecks { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
+.subcheck { display: grid; grid-template-columns: 1rem minmax(0, 1fr); gap: var(--sp-2); }
+.subcheck .i { margin-top: 1px; }
+.subcheck.is-pass .i { color: var(--ok); }
+.subcheck.is-fail .i { color: var(--danger); }
+.subcheck.is-fail b { color: var(--danger); }
+.subcheck span { color: var(--ink-2); }
+.tail { margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: 1.25rem; color: var(--ink-2); white-space: pre-wrap; overflow: hidden; position: relative; max-width: 72ch; }
+.tail::after { content: ""; display: inline-block; width: 0.5em; height: 1em; vertical-align: -0.15em; background: var(--ink); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tail::after { animation: none; } }
+
+/* Progress meter: ink on a lighter step of the same neutral. Never orange, never blue. */
+.prog { height: 0.375rem; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.prog__fill { height: 100%; background: var(--ink); border-radius: 3px; transition: width var(--dur-3) var(--ease); }
+
+/* Tabs */
+.tabs { display: flex; gap: var(--sp-5); padding: 0 var(--sp-7); border-bottom: 1px solid var(--rule); }
+.tab { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--hit); padding: 0 var(--sp-1); background: none; border: 0; color: var(--ink-2); font-weight: var(--fw-medium); text-decoration: none; cursor: pointer; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: var(--fw-bold); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--signal); border-radius: 2px 2px 0 0; }
+.tab__n { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2); background: var(--surface-sunk); border-radius: var(--r-chip); padding: 0 var(--sp-2); min-width: 1.5rem; text-align: center; }
+
+/* Panels, fields */
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.field { display: grid; gap: var(--sp-2); }
+.field label, .field__label { font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.input, .textarea, .selectbox {
+  min-height: var(--hit); padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-base); color: var(--ink); width: 100%;
+}
+.textarea { padding: var(--sp-3) var(--sp-4); line-height: var(--lh-base); resize: vertical; }
+.input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.input::placeholder, .textarea::placeholder { color: var(--ink-3); }
+.ferr { display: flex; gap: var(--sp-2); align-items: flex-start; color: var(--danger); font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ferr .i { margin-top: 2px; }
+.btn--sm { min-height: 2.25rem; padding: 0 var(--sp-4); font-size: var(--fs-sm); }
+.btn[disabled], .btn[aria-disabled="true"] { cursor: not-allowed; background: var(--surface-sunk); border-color: var(--rule); color: var(--ink-3); }
+.vstr { font-family: var(--font-code); font-size: var(--fs-xs); background: var(--surface-sunk); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-chip); white-space: nowrap; color: var(--ink); }
+.muted { color: var(--ink-3); }
+.ink2 { color: var(--ink-2); }
+
+/* Toast, used for undo and decisions */
+.toast { position: fixed; right: var(--sp-6); bottom: var(--sp-6); z-index: 20; display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5); background: var(--ink); color: var(--surface); border-radius: var(--r-panel); box-shadow: var(--shadow-overlay); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.toast .btn { min-height: 2.25rem; background: transparent; color: var(--surface); border-color: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--fs-sm); }
+
+/* Band score cell, reused from the tickets list */
+.ucell { display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--r-chip); font-size: var(--fs-md); font-weight: var(--fw-heavy); }
+.ucell--sm { width: 1.75rem; height: 1.75rem; font-size: var(--fs-base); }
+.ucell--today { background: var(--band-today); color: var(--band-today-ink); }
+.ucell--week { background: var(--band-week); color: var(--band-week-ink); }
+.ucell--month { background: var(--band-month); color: var(--band-month-ink); }
+.ucell--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.ucell--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+@media (max-width: 60rem) {
+  .topbar { flex-wrap: wrap; gap: var(--sp-3); padding: 0 var(--sp-4); }
+  .ready { order: 3; width: 100%; margin: 0; padding: var(--sp-1) 0 var(--sp-2); justify-content: space-between; gap: var(--sp-1); }
+  .ready li { gap: 0; }
+  .ready li + li::before { display: none; }
+  .ready__s { display: none; }
+  .themebtn { margin-left: auto; }
+  .phead { padding: var(--sp-5) var(--sp-4) var(--sp-4); }
+  .tabs { padding: 0 var(--sp-4); }
+  .ev { grid-template-columns: 3.25rem 1.5rem minmax(0, 1fr); }
+  .ev::before { left: calc(3.25rem + var(--sp-3) + 0.75rem - 0.5px); }
+  .toast { left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-4); }
+}
+.topbar nav { margin-left: auto; }
+@media (max-width: 60rem) { .topbar nav { order: 3; width: 100%; margin: 0; } }
+a.btn { text-decoration: none; }
+button.ready__step { text-align: left; font: inherit; color: var(--ink-3); }
+
+/* ---- Process page ---- */
+.proc { background: var(--plane); min-height: calc(100vh - 3.5rem); }
+.pwrap { background: var(--surface); border-bottom: 1px solid var(--rule); }
+.stats { display: flex; flex-wrap: wrap; gap: var(--sp-4) var(--sp-7); align-items: flex-start; padding: 0 var(--sp-7); }
+.stat dt { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink-2); font-weight: var(--fw-medium); }
+.stat dd { font-size: var(--fs-xl); line-height: var(--lh-xl); font-weight: var(--fw-heavy); display: flex; align-items: baseline; gap: var(--sp-2); }
+.stat dd small { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--ink-3); }
+.stat--fail dd { color: var(--danger); }
+.stat--fail dd .i { width: 1rem; height: 1rem; align-self: center; }
+.stat--zero dd { color: var(--ink-3); }
+.pprog { padding: var(--sp-4) var(--sp-7) var(--sp-5); display: grid; gap: var(--sp-2); max-width: 64rem; }
+.pprog__cap { font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--ink-2); display: flex; justify-content: space-between; gap: var(--sp-4); }
+.dist { display: flex; gap: 2px; height: 0.5rem; }
+.dist span { border-radius: 2px; min-width: 0.5rem; }
+.dist-legend { display: flex; flex-wrap: wrap; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--ink-2); }
+.dist-legend span { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.dist-legend b { color: var(--ink); }
+.sw { width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+.bg-today { background: var(--band-today); } .bg-week { background: var(--band-week); } .bg-month { background: var(--band-month); } .bg-shutdown { background: var(--band-shutdown); } .bg-backlog { background: var(--band-backlog); }
+
+.pfilters { display: flex; flex-wrap: wrap; gap: var(--sp-3); align-items: center; padding: var(--sp-5) var(--sp-7) var(--sp-4); }
+.pfilters__note { margin-left: auto; font-size: var(--fs-xs); color: var(--ink-3); }
+
+/* The stage matrix: lanes are rows, stages are columns. Header and lanes share one grid. */
+.matrix { --cols: 2.25rem 5.25rem 11.5rem repeat(9, minmax(3.5rem, 1fr)) 10.5rem 8.25rem; margin: 0 var(--sp-7) var(--sp-8); background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.mhead { display: grid; grid-template-columns: var(--cols); position: sticky; top: 0; z-index: 3; background: var(--surface-sunk); border-bottom: 1px solid var(--rule); border-radius: var(--r-panel) var(--r-panel) 0 0; }
+.mhead > div { padding: var(--sp-4) var(--sp-2) var(--sp-3); font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink-2); font-weight: var(--fw-medium); align-self: end; }
+.mhead .h-lane { grid-column: 1 / span 3; padding-left: var(--sp-5); align-self: stretch !important; display: flex; flex-direction: column; justify-content: space-between; gap: var(--sp-4); }
+.legend { display: grid; gap: var(--sp-2); color: var(--ink-2); font-weight: var(--fw-regular); }
+.legend li { display: flex; align-items: center; gap: var(--sp-3); }
+.legend .i { width: 0.875rem; height: 0.875rem; color: var(--ink); }
+.lg { width: 0.875rem; height: 0.875rem; display: grid; place-items: center; }
+.lg--past::before { content: ""; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--ink); box-shadow: -0.5rem 0 0 -0.125rem var(--ink), 0.5rem 0 0 -0.125rem var(--ink); }
+.lg-x { display: inline-flex; align-items: center; color: var(--danger); font-weight: var(--fw-bold); font-size: 0.625rem; width: 0.875rem; }
+.lg-x .i { width: 0.625rem; height: 0.625rem; color: var(--danger); }
+.stg { position: relative; display: grid; align-content: start; gap: var(--sp-1); align-self: stretch !important; }
+.stg__top { display: flex; align-items: center; justify-content: center; position: relative; height: 1.5rem; margin-bottom: var(--sp-2); }
+.stg__top::before { content: ""; position: absolute; left: 0; right: 0; top: 50%; height: 1px; background: var(--rule-strong); }
+.stg:first-of-type .stg__top::before { left: 50%; }
+.stg:nth-of-type(9) .stg__top::before { right: 50%; }
+.stg__n { position: relative; display: grid; place-items: center; width: 1.5rem; height: 1.5rem; border-radius: 50%; border: 1.5px solid var(--ink-3); background: var(--surface-sunk); color: var(--ink-2); font-size: var(--fs-xs); font-weight: var(--fw-bold); }
+.stg.is-complete .stg__n { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.stg.is-active .stg__n { border-color: var(--ink); color: var(--ink); }
+.stg__name { text-align: center; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-bold); color: var(--ink); }
+.stg__count { text-align: center; color: var(--ink-2); }
+.stg__count b { color: var(--ink); font-weight: var(--fw-bold); }
+.stg__now { display: grid; justify-items: center; gap: 2px; margin-top: var(--sp-1); }
+.stg__now span { display: inline-flex; align-items: center; gap: 3px; padding: 0 var(--sp-2); border-radius: var(--r-chip); background: var(--surface); border: 1px solid var(--rule-strong); color: var(--ink); font-weight: var(--fw-bold); }
+.stg__now .i { width: 0.7rem; height: 0.7rem; }
+.stg__wait { text-align: center; color: var(--ink-3); }
+.mhead .h-st, .mhead .h-tk { padding-left: var(--sp-4); }
+
+.lane { border-bottom: 1px solid var(--rule); }
+.lane:last-child { border-bottom: 0; }
+.lane__row { display: grid; grid-template-columns: var(--cols); align-items: center; min-height: 3.25rem; cursor: pointer; }
+.lane__row:hover { background: var(--surface-sunk); }
+.lane.is-open > .lane__row { background: var(--signal-wash); box-shadow: inset 3px 0 0 var(--signal); }
+.lane__x { display: grid; place-items: center; width: 2rem; height: 2rem; margin-left: var(--sp-2); border: 0; background: none; border-radius: var(--r-control); color: var(--ink-2); cursor: pointer; }
+.lane__x .i { transition: transform var(--dur-1) var(--ease); }
+.lane.is-open .lane__x .i { transform: rotate(90deg); }
+.lane__f { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink-2); padding-left: var(--sp-2); }
+.lane__eq { display: flex; flex-direction: column; min-width: 0; padding-right: var(--sp-3); }
+.lane__eq .tag { display: flex; align-items: center; gap: var(--sp-2); }
+.lane__eq small { color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.lane__st { padding-left: var(--sp-4); display: grid; gap: 2px; justify-items: start; }
+.lane__st small { font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink-3); padding-left: var(--sp-2); }
+.lane__tk { padding: 0 var(--sp-4); display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-sm); }
+.lane__tk .tid { color: var(--ink-2); font-size: var(--fs-sm); white-space: nowrap; }
+.lane__tk .failed { color: var(--danger); font-weight: var(--fw-bold); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+
+/* Track cell: a line through every stage, ink up to the lane's head, hairline after. */
+.tk { position: relative; height: 2.5rem; display: grid; place-items: center; }
+.tk::before, .tk::after { content: ""; position: absolute; top: 50%; height: 1px; margin-top: -0.5px; background: var(--rule-strong); }
+.tk::before { left: 0; right: 50%; }
+.tk::after { left: 50%; right: 0; }
+.tk.is-first::before, .tk.is-last::after, .tk--void::before, .tk--void::after { display: none; }
+.tk.in-l::before { height: 3px; margin-top: -1.5px; background: var(--ink); }
+.tk.in-r::after { height: 3px; margin-top: -1.5px; background: var(--ink); }
+.tk__node { position: relative; z-index: 1; width: 0.5rem; height: 0.5rem; border-radius: 50%; background: var(--surface); border: 1.5px solid var(--rule-strong); }
+.tk.is-past .tk__node { background: var(--ink); border-color: var(--ink); }
+.tk.is-head .tk__node { display: none; }
+.tk__head { position: relative; z-index: 1; display: grid; place-items: center; width: 1.375rem; height: 1.375rem; border-radius: 50%; background: var(--surface); color: var(--ink); }
+.tk__head .i { width: 1.375rem; height: 1.375rem; }
+.tk__head--wait { color: var(--ink-3); }
+.tk__head--fail { color: var(--danger); }
+.tk__head--done { background: var(--ink); color: var(--surface); }
+.tk__head--done .i { width: 0.875rem; height: 0.875rem; }
+.tk__retry { position: absolute; z-index: 2; top: 0.125rem; left: 50%; margin-left: 0.25rem; display: inline-flex; align-items: center; gap: 1px; color: var(--danger); font-size: 0.625rem; line-height: 1; font-weight: var(--fw-bold); }
+.tk__retry .i { width: 0.625rem; height: 0.625rem; }
+.lane.is-open > .lane__row .tk__node, .lane.is-open > .lane__row .tk__head { background: var(--signal-wash); }
+.lane.is-open > .lane__row .tk.is-past .tk__node { background: var(--ink); }
+.lane.is-open > .lane__row .tk__head--done { background: var(--ink); }
+.lane__row:hover .tk__node, .lane__row:hover .tk__head { background: var(--surface-sunk); }
+.lane__row:hover .tk.is-past .tk__node, .lane__row:hover .tk__head--done { background: var(--ink); }
+/* Finished lanes settle: the line drops to muted ink so running lanes and the score column carry the eye. */
+.lane.is-drafted .tk.in-l::before, .lane.is-drafted .tk.in-r::after { background: var(--ink-3); height: 2px; margin-top: -1px; }
+.lane.is-drafted .tk.is-past .tk__node { background: var(--ink-3); border-color: var(--ink-3); }
+.lane.is-open.is-drafted .tk.is-past .tk__node, .lane__row:hover .tk.is-past .tk__node { background: var(--ink-3); }
+.lane--batch .lane__row { background: var(--surface-sunk); }
+.lane--batch .lane__f { color: var(--ink); }
+.lane--batch.is-open > .lane__row { background: var(--signal-wash); }
+.lane.is-queued .lane__f, .lane.is-queued .tag { color: var(--ink-2); }
+
+/* Expanded lane: ladder on the left, the finding it is working on at the right */
+.lane__open { display: grid; grid-template-columns: minmax(0, 1fr) 22rem; gap: var(--sp-7); padding: var(--sp-5) var(--sp-6) var(--sp-6) calc(2.25rem + var(--sp-2)); border-top: 1px solid var(--rule); background: var(--surface); }
+.lane__open h3 { font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-bold); color: var(--ink-2); margin-bottom: var(--sp-4); }
+.ctx { display: grid; gap: var(--sp-4); align-content: start; font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ctx__q { color: var(--ink); padding-left: var(--sp-4); border-left: 2px solid var(--rule-strong); line-height: 1.25rem; }
+.ctx dl { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-4); }
+.ctx dt { color: var(--ink-3); }
+.ctx dd { color: var(--ink); }
+.ctx__acts { display: flex; flex-wrap: wrap; gap: var(--sp-3); }
+
+.notes { display: grid; gap: var(--sp-3); margin-top: var(--sp-2); }
+.notes b { display: block; color: var(--ink); }
+.usteps { display: grid; margin-top: var(--sp-2); border-top: 1px solid var(--rule); max-width: var(--measure); }
+.ustep { display: grid; grid-template-columns: 10.5rem minmax(0, 1fr) 2.75rem; gap: 0 var(--sp-4); padding: var(--sp-2) 0; border-bottom: 1px solid var(--rule); align-items: baseline; }
+.ustep b { font-weight: var(--fw-bold); color: var(--ink); }
+.ustep span { color: var(--ink-2); }
+.ustep em { font-style: normal; font-weight: var(--fw-heavy); font-size: var(--fs-base); text-align: right; }
+.ustep small { margin-left: var(--sp-2); font-size: var(--fs-xs); color: var(--ink-3); white-space: nowrap; }
+.ustep.is-changed small { color: var(--ink); font-weight: var(--fw-bold); }
+.ustep.is-na b, .ustep.is-na em { color: var(--ink-3); font-weight: var(--fw-medium); }
+.ufinal { display: flex; align-items: center; gap: var(--sp-3); margin-top: var(--sp-3); font-weight: var(--fw-bold); }
+.reasons { display: grid; gap: var(--sp-1); margin-top: var(--sp-2); }
+.reasons li { display: flex; gap: var(--sp-2); }
+.reasons .i { margin-top: 2px; color: var(--ink-2); }
+
+/* Motion demonstrations. Reduced motion collapses them through the shared rule. */
+.is-new { animation: evIn var(--dur-2) var(--ease); }
+@keyframes evIn { from { opacity: 0; transform: translateY(-4px); } }
+.tick { display: inline-block; animation: tickIn var(--dur-1) var(--ease); }
+@keyframes tickIn { from { opacity: 0; transform: translateY(40%); } }
+.pop { animation: pop var(--dur-2) var(--ease); }
+@keyframes pop { from { opacity: 0; transform: scale(0.85); } }
+.first .tk.in-l::before, .first .tk.in-r::after { transform-origin: left center; animation: sweep var(--dur-3) var(--ease) backwards; animation-delay: calc(var(--i) * 20ms); }
+@keyframes sweep { from { transform: scaleX(0); } }
+
+/* Sheet for the rendered prompt */
+.scrim { position: fixed; inset: 0; background: rgb(20 26 28 / 0.45); z-index: 30; }
+.sheet { position: fixed; top: 0; right: 0; bottom: 0; width: min(40rem, 100vw); background: var(--surface); z-index: 31; box-shadow: var(--shadow-overlay); display: flex; flex-direction: column; border-radius: var(--r-panel) 0 0 var(--r-panel); }
+.sheet header { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-5) var(--sp-6); border-bottom: 1px solid var(--rule); }
+.sheet h2 { font-size: var(--fs-md); font-weight: var(--fw-bold); }
+.sheet__body { overflow: auto; padding: var(--sp-5) var(--sp-6); display: grid; gap: var(--sp-4); align-content: start; }
+.sheet pre { margin: 0; padding: var(--sp-4); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: 1.25rem; white-space: pre-wrap; color: var(--ink); }
+.sheet h3 { font-size: var(--fs-sm); font-weight: var(--fw-bold); color: var(--ink-2); }
+
+.tickets-frame { display: block; width: 100%; height: calc(100vh - 3.5rem); border: 0; }
+
+@media (max-width: 75rem) {
+  .matrix { --cols: 2.25rem 5rem 9.5rem repeat(9, minmax(3rem, 1fr)) 9rem 6.5rem; margin: 0 var(--sp-5) var(--sp-8); }
+  .stg__name { font-size: var(--fs-xs); }
+  .lane__open { grid-template-columns: 1fr; }
+}
+@media (max-width: 60rem) {
+  .stats { padding: 0 var(--sp-4); gap: var(--sp-3) var(--sp-5); }
+  .stat dd { font-size: var(--fs-lg); line-height: var(--lh-lg); }
+  .pprog { padding: var(--sp-3) var(--sp-4) var(--sp-4); }
+  .pfilters { padding: var(--sp-4) var(--sp-4) var(--sp-3); flex-wrap: nowrap; overflow-x: auto; }
+  .pfilters .fchip { white-space: nowrap; min-height: var(--hit); }
+  .pfilters__note { display: none; }
+  .matrix { margin: 0 0 var(--sp-7); border-radius: 0; border-left: 0; border-right: 0; }
+  .mhead { display: flex; overflow-x: auto; position: static; border-radius: 0; }
+  .mhead .h-lane, .mhead .h-st, .mhead .h-tk { display: none; }
+  .mhead .stg { flex: 0 0 6.5rem; }
+  .lane__row { grid-template-columns: 2.5rem minmax(0, 1fr) auto; grid-template-areas: "x eq tk" "x track track" "x st st"; row-gap: var(--sp-2); padding: var(--sp-3) var(--sp-4) var(--sp-3) 0; }
+  .lane__x { grid-area: x; align-self: start; width: var(--hit); height: var(--hit); margin-left: 0; }
+  .lane__f { display: none; }
+  .lane__eq { grid-area: eq; }
+  .lane__eq .tag::before { content: attr(data-f); font-weight: var(--fw-bold); color: var(--ink-3); font-size: var(--fs-xs); margin-right: var(--sp-1); }
+  .lane__track { grid-area: track; display: grid; grid-template-columns: repeat(9, 1fr); }
+  .tk { height: 1.5rem; }
+  .tk__head, .tk__head .i { width: 1.125rem; height: 1.125rem; }
+  .tk__retry { display: none; }
+  .lane__st { grid-area: st; padding-left: 0; display: flex; align-items: center; gap: var(--sp-2); }
+  .lane__st small { padding: 0; }
+  .lane__tk { grid-area: tk; padding: 0; }
+  .lane__tk .tid { display: none; }
+  .lane__open { padding: var(--sp-4); gap: var(--sp-5); }
+  .ustep { grid-template-columns: minmax(0, 1fr) 2.75rem; }
+  .ustep span { grid-column: 1 / -1; grid-row: 2; }
+  .ustep small { white-space: normal; }
+}
+@media (min-width: 60.0625rem) { .lane__track { display: contents; } }
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const Q = new URLSearchParams(location.search);
+if (Q.get("theme")) document.documentElement.dataset.theme = Q.get("theme");
+const STILL = Q.has("still");
+
+const P = {
+  check: '<path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  cross: '<path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  ring: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".3"/><path class="spin" d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  pending: '<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>',
+  hollow: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  dot: '<circle cx="8" cy="8" r="4.5" fill="currentColor"/>',
+  info: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.25v4M8 4.6v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.75 3 1.75 3h-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>',
+  lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+  chev: '<path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+  down: '<path d="M4.5 6.5L8 10l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  back: '<path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  upload: '<path d="M8 11V3M4.5 6.5L8 3l3.5 3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  download: '<path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  plus: '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  trash: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  pencil: '<path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  doc: '<path d="M4 1.75h5L12.25 5v9.25H4z M9 1.75V5h3.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  paste: '<rect x="3.5" y="3" width="9" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 3V2h4v1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 7.5h4M6 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  theme: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/>',
+  play: '<path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  refresh: '<path d="M13 8a5 5 0 1 1-1.5-3.55M13 2.75v2.5h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  sheet: '<path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M6.5 6.5v6" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+};
+const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 16 16" aria-hidden="true">${P[n]}</svg>`;
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function status(kind, word, extra = "") {
+  const map = {
+    running: ["", "ring"], queued: ["status--muted", "pending"], done: ["", "check"],
+    ok: ["status--ok", "check"], fail: ["status--danger", "cross"], draft: ["status--muted", "pencil"],
+    info: ["", "info"], locked: ["status--muted", "lock"],
+  };
+  const [cls, icon] = map[kind];
+  return `<span class="status ${cls} ${extra}">${ic(icon)}${word}</span>`;
+}
+
+function toggleTheme() {
+  const r = document.documentElement;
+  const dark = r.dataset.theme === "dark" || (!r.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  r.dataset.theme = dark ? "light" : "dark";
+}
+
+/* steps: [{n, label, sub, state: done|current|locked|stale|todo, href, why}] */
+function topbar(steps, current) {
+  const items = steps.map((s) => {
+    const cls = ["ready__step", s.state === "done" ? "is-done" : "", s.n === current ? "is-current" : "",
+      s.state === "locked" ? "is-locked" : "", s.state === "stale" ? "is-stale" : ""].join(" ");
+    const sub = s.state === "stale" ? `<span class="ready__s is-danger">${ic("cross")}${s.sub}</span>`
+      : s.state === "locked" ? `<span class="ready__s">${ic("lock")}${s.sub}</span>`
+      : `<span class="ready__s">${s.sub}</span>`;
+    const inner = `<span class="ready__n">${s.n}</span><span class="ready__t">${s.label}${sub}</span>`;
+    return s.state === "locked"
+      ? `<li><button type="button" class="${cls}" aria-disabled="true" title="${s.why}">${inner}</button></li>`
+      : `<li><a class="${cls}" href="${s.href}"${s.n === current ? ' aria-current="page"' : ""}>${inner}</a></li>`;
+  }).join("");
+  return `<header class="topbar">
+  <span class="wordmark">Triage</span>
+  <button type="button" class="ws">Bravo platform${ic("down")}</button>
+  <nav aria-label="Workspace steps"><ol class="ready">${items}</ol></nav>
+  <button type="button" class="iconbtn themebtn" onclick="toggleTheme()" aria-label="Switch theme">${ic("theme")}</button>
+</header>`;
+}
+
+const secs = (t) => t < 60 ? t.toFixed(2) + " s" : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+function ladder(evs) {
+  const icon = { done: "check", pass: "check", fail: "cross", info: "info", start: "ring", pending: "pending", wait: "pending" };
+  const cls = { done: "ev--done", pass: "ev--pass", fail: "ev--fail", info: "ev--info", start: "ev--start", pending: "ev--pending", wait: "ev--pending" };
+  return `<ol class="ladder">${evs.map((e) => `<li class="ev ${cls[e.status]}">
+    <span class="ev__t">${e.ts == null ? "" : secs(e.ts)}</span>
+    <span class="ev__i">${ic(icon[e.status])}</span>
+    <div class="ev__b"><p class="ev__title"><span class="ev__stage">${e.stage}</span>${e.title}${e.status === "start" ? '<span class="sr-only">, running</span>' : ""}</p>${e.body && e.body.startsWith("<") ? e.body : e.body ? `<p class="ev__d">${e.body}</p>` : ""}</div>
+  </li>`).join("")}</ol>`;
+}
+
+
+/* Bravo content shared by the workspace and process mockups. */
+const REGISTRY = [
+  ["K-3401","Centrifugal Compressor","Main gas export compressor train",10,7,false,"None","Single train, no spare, no workaround. If it trips the platform goes to recycle and production is cut within the hour. Vibration is trended daily and anything unusual gets a rotating equipment specialist the same day."],
+  ["P-3305","Reciprocating Pump","Chemical injection - corrosion inhibitor",7,4,false,"None","Fussy little unit, diaphragm failures every few months. Losing it does not stop production so it gets deprioritised, but inhibitor starvation means the downstream carbon steel starts corroding within weeks. The consequence lands six months later on someone else's desk."],
+  ["V-1201","Pressure Vessel","First stage production separator",9,8,true,"None","Thick walled and historically trouble free, but it is the pressure boundary for the entire first stage. Any indication of wall loss, cracking or weeping goes to the integrity engineer regardless of how small it looks."],
+  ["V-1305","Pressure Vessel","Test separator",4,8,false,"Yes (bypass available)","Only used during well testing. Can be isolated and bypassed indefinitely with no production impact. Findings here can usually wait for the next planned shutdown."],
+  ["V-2450","Pressure Vessel","Fuel gas scrubber",7,7,false,"None","Protects the turbines from liquid carryover. Not glamorous, but a liquid slug into a gas turbine is an expensive afternoon."],
+  ["PSV-1310","Pressure Safety Valve","Overpressure protection for V-1201",9,7,true,"None","Certified relief device on a two year pop test cycle. Any evidence of passing or weeping is treated as an impairment of a protection layer, not as a maintenance nuisance. There is a regulatory clock on impaired relief devices."],
+  ["PSV-3420","Pressure Safety Valve","Overpressure protection for compressor discharge",9,8,true,"None","Same regime as PSV-1310. Recently recertified and behaving itself."],
+  ["FG-0455","Gas Detector","Point IR hydrocarbon gas detector - compression module",9,6,true,"Voted 2oo3","Detectors in this module drift with salt and humidity. Calibration slippage is common and mostly benign; a head that fails to respond to test gas is not benign."],
+  ["INST-2150","Level Transmitter","Interface level transmitter on V-1201 - duty",7,6,false,"Duplicated (INST-2151)","Drifts. Feeds both control and the high level alarm. Operators generally know when it is lying to them, but relying on operator intuition is not a control measure we are allowed to write down."],
+  ["INST-2151","Level Transmitter","Interface level transmitter on V-1201 - backup",6,7,false,"Duplicated (INST-2150)","Installed as the second leg after a near miss in 2021. Keeping both legs healthy is the whole point of the arrangement."],
+  ["FW-8101","Firewater Pump","Diesel driven firewater pump A",10,7,true,"N+1 (FW-8102)","One of two diesel firewater pumps, weekly test run. Failure to start on demand is the scenario the whole fire protection philosophy is built to avoid. Both pumps unavailable at once means production shutdown."],
+  ["FW-8102","Firewater Pump","Diesel driven firewater pump B",10,6,true,"N+1 (FW-8101)","The older of the two. Battery and starting air problems recur. Historically the first one to fail a test start."],
+  ["DEL-8300","Deluge System","Deluge skid and ringmain - wellhead area",10,6,true,"None","Nozzle blockage from marine growth and scale is the recurring issue. Partial blockage reduces coverage over a specific area; the system looks healthy from the skid but is not delivering where it matters."],
+  ["LB-4102","Lifeboat","Freefall lifeboat - port station",10,8,true,"N+1 (LB-4101)","Certified survival craft under class survey. Any defect that could prevent launch reduces the total evacuation capacity of the installation, which is compared against the POB count. That comparison is not negotiable."],
+  ["CR-5001","Pedestal Crane","Main deck pedestal crane",7,5,false,"None","Lifting appliance under a separate certification regime; wire rope and hook inspections are governed by the lifting standard. Out of service means no supply boat offloads, which becomes a logistics problem within days."],
+  ["HVAC-7201","HVAC Unit","Temporary refuge pressurisation unit",9,6,true,"None","Keeps the temporary refuge at positive pressure during a gas release so that people mustering there are not breathing hydrocarbons. Easy to dismiss as building services. It is not building services."],
+  ["SC-1001","Structure","Cellar deck primary support steelwork",9,9,true,"None","Fabric maintenance here is chronically behind, so coating breakdown reports are frequent and mostly cosmetic. Section loss at a node or a cracked weld at a primary connection is a completely different severity and should never be batched with the coating backlog."],
+  ["PL-1002","Piping","6 inch production flowline - manifold to V-1201",8,7,false,"None","Live hydrocarbon line at full wellhead pressure. Corrosion under insulation is the known threat here and it is invisible until the cladding comes off."],
+].map(([id, type, service, crit, rel, sce, red, comment]) => ({ id, type, service, crit, rel, sce, red, comment }));
+const EQ = Object.fromEntries(REGISTRY.map((e) => [e.id, e]));
+
+/* finding id, date, equipment, inspection type, method, reporter, role, description */
+const FINDINGS = [
+  ["F-1001","2026-06-02","K-3401","Condition Monitoring","Vibration Analysis","A. Rasmussen","Rotating Equipment Technician","Overall vibration on the non-drive end bearing has climbed from 2.1 mm/s to 4.6 mm/s over the last six weeks. Spectrum shows a growing 1x component with some sidebands. Not at alarm yet but the trend is clearly upward and it has not plateaued."],
+  ["F-1002","2026-06-03","PSV-1310","Routine Operator Round","Visual / Audible","M. Delacroix","Production Operator","Faint hissing from the PSV outlet tailpipe. You can hear it when the deck is quiet. Cannot see any liquid but there is a light hydrocarbon smell nearby. Set pressure is well above current operating pressure so it should not be lifting."],
+  ["F-1003","2026-06-03","FW-8102","Function Test","Weekly Test Start","S. Whitfield","Mechanical Technician","Pump failed to start on the first attempt during the weekly test. Started on the second attempt after about eight seconds of cranking. Starting batteries measured 22.8 V at rest which is on the low side. Ran normally once started and achieved rated discharge pressure."],
+  ["F-1004","2026-06-04","PL-1002","Corrosion Survey","Insulation Removal + UT","H. Lindqvist","Corrosion Engineer","Removed cladding at three inspection windows on the 6 inch flowline. At window 2 near the low point drain the insulation was saturated and there is heavy scaling on the pipe surface. UT readings at that location give 6.2 mm against a nominal 11.1 mm and a minimum allowable of 7.4 mm. Adjacent windows are within tolerance."],
+  ["F-1005","2026-06-05","FG-0455","Function Test","Bump Test with Span Gas","T. Nakamura","Instrument Technician","Detector head did not respond to 50 percent LEL test gas. Repeated with a second cylinder, still no response. Head appears clean, no obvious damage to the optics. The other two heads in the same voted group responded correctly."],
+  ["F-1006","2026-06-05","CR-5001","Statutory Inspection","Third Party Survey","D. Ferreira","Third Party Lifting Inspector","Annual lifting appliance survey. Main hoist wire rope shows 6 broken wires within one lay length in the section that spools onto the drum at maximum boom radius. Discard criterion for this rope construction is 10 broken wires per lay length. Rope lubrication is poor along the same section. Hook, sheaves and structure all satisfactory."],
+  ["F-1007","2026-06-06","P-3305","Routine Operator Round","Visual","R. Mbeki","Production Operator","Corrosion inhibitor pump has tripped again on low discharge pressure. This is the third time this month. Suspect the diaphragm. Injection to the wellhead manifold has been intermittent for around ten days according to the injection log."],
+  ["F-1008","2026-06-07","SC-1001","Structural Survey","Close Visual + MPI","L. Andersen","Structural Engineer","Crack indication found at the toe of the weld connecting a primary brace to the cellar deck node at grid B4. Confirmed by MPI, length approximately 45 mm. This is a primary structural connection. Surrounding coating is intact so this is not a general fabric issue."],
+  ["F-1009","2026-06-08","SC-1001","Routine Operator Round","Visual","J. Okoye","Production Operator","General coating breakdown across the underside of the cellar deck plating between grids C2 and C5. Rust staining and flaking primer over a large area. This has been reported before and is on the fabric maintenance backlog."],
+  ["F-1010","2026-06-08","HVAC-7201","Function Test","Differential Pressure Test","S. Whitfield","Mechanical Technician","Temporary refuge pressurisation test carried out. Measured differential pressure across the accommodation envelope was 27 Pa against a required minimum of 50 Pa. Fan is running at rated speed. Suspect either a damper not fully closing or degraded door seals somewhere in the envelope."],
+  ["F-1011","2026-06-10","DEL-8300","Function Test","Full Flow Test","S. Whitfield","Mechanical Technician","Annual deluge flow test on the wellhead area ringmain. Approximately 12 of the 60 nozzles in the north quadrant delivered either no flow or a badly distorted spray pattern. Skid pressure and flow at the header were normal, so the blockage is downstream in the branch pipework. The affected quadrant sits directly above two producing wellheads."],
+  ["F-1012","2026-06-11","LB-4102","Statutory Inspection","Class Survey","D. Ferreira","Third Party Marine Surveyor","Hydraulic release mechanism on the freefall lifeboat did not operate cleanly during the annual survey. Required significantly more force than specification and the movement was notchy. Surveyor has withheld the certificate pending overhaul of the release gear. Lifeboat is currently declared unavailable."],
+  ["F-1013","2026-06-11","INST-2150","Condition Monitoring","Data Review","T. Nakamura","Instrument Technician","Interface level transmitter is reading approximately 12 percent higher than the backup transmitter and around 15 percent higher than the sight glass. Divergence has been growing steadily over about three weeks. Control is currently on this transmitter."],
+  ["F-1014","2026-06-12","V-1305","Shutdown Inspection","Internal Visual","H. Lindqvist","Corrosion Engineer","Test separator internals inspected. Inlet deflector plate is partly detached, one of the four support brackets has corroded through. Vessel shell and heads in good condition. Test separator is not currently in service."],
+  ["F-1015","2026-06-16","V-2450","Routine Operator Round","Visual","M. Delacroix","Production Operator","Level gauge glass on the fuel gas scrubber is dirty and hard to read. Level control appears to be working normally on the transmitter. No liquid carryover indications downstream."],
+  ["F-1016","2026-06-16","PSV-3420","Routine Operator Round","Visual","R. Mbeki","Production Operator","Certification tag on the compressor discharge PSV is illegible, the label has corroded. Checked the register and the valve was recertified in March 2025 so it is in date. Physical condition of the valve looks fine."],
+  ["F-1017","2026-06-17","FW-8101","Function Test","Weekly Test Start","S. Whitfield","Mechanical Technician","Firewater pump A started first time and ran up correctly but discharge pressure stabilised at 9.2 barg against a design of 11 barg. Flow was not measured. Engine parameters all normal. Suspect either pump internal wear or a partly closed valve somewhere in the test line."],
+  ["F-1018","2026-06-18","INST-2151","Condition Monitoring","Data Review","T. Nakamura","Instrument Technician","Backup interface level transmitter has been reading a flat line for approximately 36 hours. The value has not moved at all which is not credible for this service. Suspect a blocked impulse line or a failed sensor."],
+  ["F-1019","2026-06-19","K-3401","Routine Operator Round","Visual","M. Delacroix","Production Operator","Lagging on the second stage discharge line has come loose and a section of cladding is flapping in the wind. No process concern but it will end up as a dropped object if left."],
+  ["F-1020","2026-06-21","DEL-8300","Routine Operator Round","Visual","R. Mbeki","Production Operator","Isolation valve on the deluge branch line to the north quadrant was found chained in the closed position with no valve status tag and no entry in the impairment register. Valve was reopened immediately and the control room informed. Unknown how long it had been shut."],
+  ["F-1021","2026-06-22","V-1201","Routine Operator Round","Visual","M. Delacroix","Production Operator","Insulation on the separator shell is damp and stained around the manway area and there is rust staining running down from under the cladding. Cannot see the pipework underneath without removing the insulation."],
+].map(([id, date, eq, itype, method, by, role, desc]) => ({ id, date, eq, itype, method, by, role, desc, type: EQ[eq].type }));
+
+/* Scores from the drafted tickets in mockup-tickets.html */
+const SCORES = {
+  "F-1001":[8,8],"F-1002":[8,9],"F-1003":[9,10],"F-1004":[9,9],"F-1005":[10,8],"F-1006":[4,5],"F-1007":[9,8],
+  "F-1008":[7,9],"F-1009":[3,3],"F-1010":[10,10],"F-1011":[10,10],"F-1012":[10,10],"F-1013":[8,8],"F-1014":[2,2],
+  "F-1015":[2,3],"F-1016":[2,3],"F-1017":[6,9],"F-1018":[9,7],"F-1019":[6,3],"F-1020":[9,10],"F-1021":[6,9],
+};
+const OVERRIDES = { "F-1002":"pl","F-1003":"pl","F-1011":"pl","F-1017":"pl","F-1020":"pl","F-1012":"evac" };
+
+const BANDS = [["today","Today",9],["week","This week",7],["month","This month",5],["shutdown","Next planned shutdown",3],["backlog","Backlog",1]];
+const bandOf = (u) => BANDS.find((b) => u >= b[2]);
+
+function urgencyOf(fid) {
+  const [L, I] = SCORES[fid];
+  const sce = EQ[FINDINGS.find((f) => f.id === fid).eq].sce;
+  const base = 0.7 * I + 0.3 * L;
+  const steps = [{ name: "Weighted base", why: `0.7 × impact ${I} + 0.3 × likelihood ${L}`, val: base.toFixed(1), state: "set" }];
+  let v = base;
+  const lift = L >= 9 && v < I;
+  if (lift) v = I;
+  steps.push({ name: "Near-certain lift", why: L >= 9 ? `Likelihood ${L} is at least 9, lifted to impact ${I}` : `Likelihood ${L} is below 9`, val: v.toFixed(1), state: lift ? "changed" : (L >= 9 ? "held" : "na") });
+  const cap = I <= 3 && v > 4;
+  if (cap) v = 4;
+  steps.push({ name: "Inconsequential cap", why: I <= 3 ? `Impact ${I} is at most 3, capped at 4` : `Impact ${I} is above 3`, val: v.toFixed(1), state: cap ? "changed" : (I <= 3 ? "held" : "na") });
+  let s = Math.floor(v + 0.5);
+  steps.push({ name: "Round", why: "Half rounds up", val: String(s), state: s !== v ? "changed" : "held" });
+  const floorApplies = sce && I >= 7;
+  const floor = floorApplies && s < 7;
+  if (floor) s = 7;
+  steps.push({ name: "SCE floor", why: floorApplies ? `Safety Critical Element with impact ${I}, at least 7` : (sce ? `Impact ${I} is below 7` : "Not a Safety Critical Element"), val: String(s), state: floor ? "changed" : (floorApplies ? "held" : "na") });
+  const o = OVERRIDES[fid];
+  if (o) {
+    const changed = s < 9;
+    if (changed) s = 9;
+    steps.push(o === "pl"
+      ? { name: "Override: protection layer impaired, no deviation", why: `Model flagged protection_layer_impaired with deviation_recorded unknown, treated as not recorded. ${EQ[FINDINGS.find((f) => f.id === fid).eq].type} is a protection layer type. At least 9`, val: String(s), state: changed ? "changed" : "held", fired: true }
+      : { name: "Override: evacuation below POB", why: "Model flagged evacuation_capacity_reduced and Lifeboat is an evacuation type. POB is not in the data, so the comparison is left to review. At least 9", val: String(s), state: changed ? "changed" : "held", fired: true });
+  }
+  return { L, I, score: s, band: bandOf(s), steps };
+}
+
+const NOTES = {
+  "F-1001": [["Other finding on this equipment","Other finding on K-3401 in this inspection period: F-1019 (2026-06-19): Lagging on the second stage discharge line has come loose and a section of cladding is flapping in the wind."]],
+  "F-1019": [["Other finding on this equipment","Other finding on K-3401 in this inspection period: F-1001 (2026-06-02): Overall vibration on the non-drive end bearing has climbed from 2.1 mm/s to 4.6 mm/s over the last six weeks."]],
+  "F-1008": [["Other finding on this equipment","Other finding on SC-1001 in this inspection period: F-1009 (2026-06-08): General coating breakdown across the underside of the cellar deck plating between grids C2 and C5."]],
+  "F-1009": [["Other finding on this equipment","Other finding on SC-1001 in this inspection period: F-1008 (2026-06-07): Crack indication found at the toe of the weld connecting a primary brace to the cellar deck node at grid B4."]],
+  "F-1011": [["Other finding on this equipment","Other finding on DEL-8300 in this inspection period: F-1020 (2026-06-21): Isolation valve on the deluge branch line to the north quadrant was found chained in the closed position."]],
+  "F-1020": [["Other finding on this equipment","Other finding on DEL-8300 in this inspection period: F-1011 (2026-06-10): Approximately 12 of the 60 nozzles in the north quadrant delivered either no flow or a badly distorted spray pattern."]],
+  "F-1003": [["Partner has a finding","Redundant partner FW-8101 also has an open finding in this inspection period: F-1017. Do not credit redundancy."]],
+  "F-1017": [["Partner has a finding","Redundant partner FW-8102 also has an open finding in this inspection period: F-1003. Do not credit redundancy."]],
+  "F-1013": [["Partner has a finding","Redundant partner INST-2151 also has an open finding in this inspection period: F-1018. Do not credit redundancy."]],
+  "F-1018": [["Partner has a finding","Redundant partner INST-2150 also has an open finding in this inspection period: F-1013. Do not credit redundancy."]],
+  "F-1012": [["Partner not in registry","Redundant partner LB-4101 is not in the registry; its condition cannot be verified."]],
+  "F-1005": [["Voted group","Voted 2oo3 group: with one member lost it runs 2oo2, all remaining members must agree; degradation, not defeat, but the next failure defeats it."]],
+};
+
+const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${+d} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m - 1]} ${y}`; };
+
+const STATE = Q.get("state") || "mid";      // mid | done | failed
+const TAB = Q.get("tab") || "pipeline";
+const STAGES = ["Intake", "Batch notes", "Prompt", "Model call", "Validate", "Invariants", "Urgency", "Review", "Ticket"];
+const MODEL = "claude-sonnet-5-5";
+const NOW_MID = 15.2;
+
+/* Worker schedule: start and finish in seconds from process start, worker number */
+const SCHED = {
+  "F-1001":[0.40,4.45,1],"F-1002":[0.40,5.02,2],"F-1003":[0.40,4.16,3],"F-1004":[0.40,4.78,4],
+  "F-1005":[4.16,8.46,3],"F-1006":[4.45,8.40,1],"F-1007":[4.78,9.18,4],"F-1008":[5.02,9.73,2],
+  "F-1009":[8.40,12.62,1],"F-1010":[8.46,12.96,3],"F-1011":[9.18,15.48,4],"F-1012":[9.73,16.10,2],
+  "F-1013":[12.62,15.90,1],"F-1014":[12.96,15.70,3],"F-1015":[15.48,19.48,4],"F-1016":[15.70,19.60,3],
+  "F-1017":[15.90,20.30,1],"F-1018":[16.10,20.30,2],"F-1019":[19.48,23.28,4],"F-1020":[19.60,24.10,3],"F-1021":[20.30,24.60,1],
+};
+const TKT = (fid) => "TKT-" + fid.slice(2);
+
+/* Lane position: index of the stage the lane is in, 9 when drafted. */
+function laneState(fid) {
+  if (STATE === "failed" && fid === "F-1018") return { kind: "failed", pos: 8, retries: [4], failAt: [4, 6] };
+  const retries = fid === "F-1003" ? [4] : fid === "F-1012" ? [5] : [];
+  if (STATE !== "mid") return { kind: "drafted", pos: 9, retries };
+  const mid = { "F-1011": 4, "F-1012": 3, "F-1013": 3, "F-1014": 3 };
+  if (fid in mid) return { kind: "running", pos: mid[fid], retries, attempt: fid === "F-1012" ? 2 : 1 };
+  if (SCHED[fid][0] > NOW_MID) return { kind: "queued", pos: 2, retries };
+  return { kind: "drafted", pos: 9, retries };
+}
+
+const clock = (t) => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, "0")}`;
+const k = (n) => n.toLocaleString("en-GB");
+
+/* ---- Event ladder, built from {ts, stage, status, title, detail}. A start and its done fold into one row. */
+function eventsFor(fid) {
+  const f = FINDINGS.find((x) => x.id === fid), eq = EQ[f.eq], ls = laneState(fid);
+  const [t0] = SCHED[fid];
+  const n = +fid.slice(2) - 1000;
+  const evs = [];
+  const add = (ts, stage, status, title, body = "") => evs.push({ ts, stage, status, title, body });
+  add(0.12, "Intake", "done", "Loaded with its registry row", `<div class="kv"><span><b>${eq.id}</b> ${eq.type}</span><span>${eq.sce ? "SCE" : "Not an SCE"}</span><span>Criticality <b>${eq.crit}</b></span><span>Reliability <b>${eq.rel}</b></span><span>Redundancy <span class="vstr">${esc(eq.red)}</span></span></div>`);
+  const notes = NOTES[fid] || [];
+  add(0.31, "Batch notes", notes.length ? "info" : "done", notes.length ? `${notes.length} batch note found` : "No batch notes for this finding",
+    notes.length ? `<div class="notes">${notes.map(([kd, t]) => `<p><b>${kd}</b>${esc(t)}</p>`).join("")}</div>` : "");
+  if (ls.kind === "queued") { add(null, "Prompt", "wait", "Waiting for a worker", "Starts when one of the 4 workers is free."); return pending(evs, 3); }
+  const sys = fid === "F-1012" ? "6.0" : "6.1", usr = (1.6 + (n % 4) * 0.1).toFixed(1);
+  const userK = fid === "F-1003" ? "1.8" : fid === "F-1012" ? "1.7" : usr;
+  add(t0 + 0.01, "Prompt", "done", `Prompt rendered, picked up by worker ${SCHED[fid][2]}`, `<div class="kv"><span>System <b>${sys}k</b> characters</span><span>User <b>${userK}k</b> characters</span><span>Rules section <b>${eq.type}</b></span><span>${notes.length} batch note${notes.length === 1 ? "" : "s"}</span></div>`);
+  const call = (ts, attempt, ms, inT, cached, out, live) => {
+    if (live) return add(ts, "Model call", "start", `Attempt ${attempt}, waiting for the reply`, `<div class="kv"><span><b>${MODEL}</b></span><span>Elapsed <b data-live="${ts}">${(NOW_MID - ts).toFixed(1)} s</b></span><span>Max 16,000 tokens</span></div>`);
+    add(ts, "Model call", "done", `Attempt ${attempt}, reply in ${(ms / 1000).toFixed(1)} s`, `<div class="kv"><span><b>${MODEL}</b></span><span><b>${k(inT)}</b> in${cached ? `, ${k(cached)} from cache` : ", cache miss"}</span><span><b>${k(out)}</b> out</span></div>`);
+  };
+  const inv = (fails) => {
+    const [L, I] = SCORES[fid];
+    const rows = [
+      ["confirmed_failure and out_of_service are exclusive", fails.includes(0) ? "Model set both to yes." : "Not both set."],
+      ["confirmed_failure implies likelihood at least 8", fid === "F-1012" ? "Likelihood 10." : `Likelihood ${L}.`],
+      ["out_of_service implies likelihood at most 4", fails.includes(2) ? "out_of_service is yes but likelihood is 10." : "Not out of service, does not apply."],
+      ["confirmed failure on an SCE implies impact at least 5", eq.sce ? `Impact ${I}.` : "Not an SCE, does not apply."],
+    ];
+    return `<div class="subchecks">${rows.map(([nm, why], i) => `<div class="subcheck ${fails.includes(i) ? "is-fail" : "is-pass"}">${ic(fails.includes(i) ? "cross" : "check")}<p><b>${nm}</b> <span>${why}</span></p></div>`).join("")}</div>`;
+  };
+  const pos = ls.pos;
+  let ts = t0 + 0.02;
+  if (fid === "F-1003") {
+    call(0.42, 1, 1900, 4210, 0, 380);
+    add(2.33, "Validate", "fail", "Attempt 1: schema rejected the reply, asking for a correction", `<code class="err">summary: String should have at most 300 characters (318)</code>`);
+    call(2.35, 2, 1700, 4402, 3968, 351);
+    add(4.06, "Validate", "pass", "Attempt 2: reply matches the assessment schema", `<div class="kv"><span>Likelihood <b>9</b></span><span>Impact <b>10</b></span><span>Summary <b>287</b> characters</span></div>`);
+    add(4.06, "Invariants", "pass", "All 4 checks pass", inv([]));
+    ts = 4.07;
+  } else if (fid === "F-1012") {
+    call(9.75, 1, 2200, 4180, 3968, 402);
+    add(11.96, "Validate", "pass", "Attempt 1: reply matches the assessment schema", `<div class="kv"><span>Likelihood <b>10</b></span><span>Impact <b>10</b></span></div>`);
+    add(11.96, "Invariants", "fail", "2 of 4 checks failed, asking the model to reconsider", inv([0, 2]) + `<p class="ev__d">Attempt 2 of 3 carries both violations in the prompt.</p>`);
+    if (pos === 3) { call(11.98, 2, 0, 0, 0, 0, true); return pending(evs, 4); }
+    call(11.98, 2, 4010, 4795, 3968, 377);
+    add(15.99, "Validate", "pass", "Attempt 2: reply matches the assessment schema", `<div class="kv"><span>Likelihood <b>10</b></span><span>Impact <b>10</b></span><span>out_of_service <b>no</b></span></div>`);
+    add(15.99, "Invariants", "pass", "All 4 checks pass", inv([]));
+    ts = 16.0;
+  } else if (STATE === "failed" && fid === "F-1018") {
+    const e = "likelihood_of_failure.rationale: String should have at least 1 character";
+    call(t0 + 0.02, 1, 1800, 4160, 3968, 344);
+    add(t0 + 1.83, "Validate", "fail", "Attempt 1: schema rejected the reply, asking for a correction", `<code class="err">${e}</code>`);
+    call(t0 + 1.85, 2, 1100, 4560, 3968, 52);
+    add(t0 + 2.96, "Validate", "fail", "Attempt 2: schema rejected the reply, asking for a correction", `<code class="err">${e}</code>`);
+    call(t0 + 2.98, 3, 1100, 4640, 3968, 51);
+    add(t0 + 4.09, "Validate", "fail", "Attempt 3: schema rejected the reply, no attempts left", `<code class="err">${e}</code>`);
+    add(t0 + 4.10, "Urgency", "fail", "No assessment to derive urgency from; scored 10 for a human", "");
+    add(t0 + 4.10, "Review", "done", "Review required: automatic triage failed", "");
+    add(t0 + 4.11, "Ticket", "fail", `${TKT(fid)} drafted as a failed triage`, `<p class="ev__d">Scored 10, 10, 10 so it sorts to the top of the today band. The three attempts and their errors travel with the ticket.</p>`);
+    return evs;
+  } else {
+    const ms = 1600 + ((n * 37) % 9) * 100, inT = 4100 + ((n * 53) % 30) * 10, out = 330 + ((n * 29) % 9) * 10;
+    if (pos === 3) { call(ts, 1, 0, 0, 0, 0, true); return pending(evs, 4); }
+    call(ts, 1, ms, inT, n <= 4 ? 0 : 3968, out);
+    ts += ms / 1000 + 0.01;
+    if (pos === 4) { add(ts, "Validate", "start", "Attempt 1: checking the reply against the schema", ""); return pending(evs, 5); }
+    const [L, I] = SCORES[fid];
+    add(ts, "Validate", "pass", "Attempt 1: reply matches the assessment schema", `<div class="kv"><span>Likelihood <b>${L}</b></span><span>Impact <b>${I}</b></span></div>`);
+    add(ts, "Invariants", "pass", "All 4 checks pass", inv([]));
+    ts += 0.01;
+  }
+  const u = urgencyOf(fid);
+  const fired = u.steps.filter((s) => s.fired).length;
+  add(ts, "Urgency", "done", `Urgency ${u.score}, ${u.band[1].toLowerCase()}${fired ? `, ${fired} override fired` : ""}`,
+    `<div class="usteps">${u.steps.map((s) => `<div class="ustep ${s.state === "changed" || s.state === "set" ? "is-changed" : s.state === "na" ? "is-na" : ""}"><b>${s.name.replace("Override: ", "Override, ")}</b><span>${esc(s.why)}<small>${s.state === "set" ? "Starting value" : s.state === "changed" ? "Changed the value" : s.state === "na" ? "Not applicable" : s.fired ? "Fired, already above" : "No change"}</small></span><em>${s.val}</em></div>`).join("")}</div>
+     <p class="ufinal"><span class="ucell ucell--sm ucell--${u.band[0]}">${u.score}</span>${u.band[1]}</p>`);
+  const reasons = [];
+  if (u.score >= 9) reasons.push(["Today band.", `Urgency ${u.score} sits in the today band.`]);
+  if (eq.sce) reasons.push(["Safety Critical Element.", "Every SCE ticket is checked by a human before it enters the work queue."]);
+  if (fired) reasons.push(["Override fired.", "An escalation override set or confirmed the urgency."]);
+  if (notes.some((x) => x[0] === "Partner has a finding")) reasons.push(["Partner has a finding.", "Redundancy credit withdrawn."]);
+  if (notes.some((x) => x[0] === "Partner not in registry")) reasons.push(["Partner not in registry.", "The redundant partner cannot be verified."]);
+  add(ts, "Review", reasons.length ? "info" : "done", reasons.length ? `${reasons.length} review trigger${reasons.length === 1 ? "" : "s"}` : "No review trigger, straight to the queue",
+    reasons.length ? `<ul class="reasons">${reasons.map(([a, b]) => `<li>${ic("flag")}<span><b>${a}</b> ${b}</span></li>`).join("")}</ul>` : "");
+  add(SCHED[fid][1], "Ticket", "done", `${TKT(fid)} drafted`, `<a class="tid" href="?tab=tickets${STATE !== "mid" ? "&state=" + STATE : ""}">Open ${TKT(fid)} in Tickets</a>`);
+  return evs;
+}
+function pending(evs, from) {
+  for (let i = from; i < STAGES.length; i++) evs.push({ ts: null, stage: STAGES[i], status: "pending", title: "Not reached", body: "" });
+  return evs;
+}
+function batchEvents() {
+  const evs = [
+    { ts: 0.00, stage: "Process", status: "done", title: "Started with rules v2", body: `<div class="kv"><span><b>21</b> findings</span><span><b>18</b> assets</span><span><b>${MODEL}</b></span><span><b>4</b> workers</span></div>` },
+    { ts: 0.12, stage: "Intake", status: "pass", title: "21 of 21 findings match the registry", body: `<div class="kv"><span>Unknown equipment <b>0</b></span><span>Type mismatches <b>0</b></span></div>` },
+    { ts: 0.31, stage: "Batch notes", status: "info", title: "12 notes on 12 findings", body: `<div class="kv"><span>Other finding on this equipment <b>6</b></span><span>Partner has a finding <b>4</b></span><span>Partner not in registry <b>1</b></span><span>Voted group <b>1</b></span></div>` },
+    { ts: 0.40, stage: "Queue", status: "done", title: "4 workers picked up F-1001 to F-1004", body: "" },
+  ];
+  if (STATE !== "mid") evs.push({ ts: 24.71, stage: "Process", status: STATE === "failed" ? "fail" : "done", title: STATE === "failed" ? "Finished, 20 drafted and 1 failed triage" : "Finished, 21 drafted", body: `<div class="kv"><span>Retried <b>2</b></span><span>Took <b>25 s</b></span></div>` });
+  return evs;
+}
+
+/* ---- Rendering */
+const lanes = FINDINGS.map((f) => ({ f, s: laneState(f.id) }));
+const counts = () => {
+  const c = { drafted: 0, failed: 0, running: 0, queued: 0 };
+  lanes.forEach((l) => c[l.s.kind]++);
+  return c;
+};
+let open = new Set(Q.get("open") ? Q.get("open").split(",") : STATE === "mid" ? ["F-1003", "F-1012"] : ["F-1003"]);
+let filter = "all";
+
+function track(s, i) {
+  return STAGES.map((_, j) => {
+    const past = j < s.pos, head = j === s.pos && s.kind !== "drafted";
+    const cls = ["tk", j === 0 ? "is-first" : "", j === 8 ? "is-last" : "", past ? "is-past" : "", head ? "is-head" : "",
+      (j <= s.pos && j > 0 && s.kind !== "queued") || (s.kind === "queued" && j <= 2 && j > 0) ? "in-l" : "",
+      j < s.pos ? "in-r" : ""].join(" ");
+    let inner = `<span class="tk__node"></span>`;
+    if (head && s.kind === "running") inner = `<span class="tk__head">${ic("ring")}</span>`;
+    if (head && s.kind === "queued") inner = `<span class="tk__head tk__head--wait">${ic("pending")}</span>`;
+    if (s.kind === "failed" && s.failAt.includes(j)) inner = `<span class="tk__head tk__head--fail">${ic("cross")}</span>`;
+    if (s.kind === "failed" && j === 8) inner = `<span class="tk__head tk__head--fail">${ic("cross")}</span>`;
+    if (s.kind === "drafted" && j === 8) inner = `<span class="tk__head tk__head--done">${ic("check")}</span>`;
+    const retry = s.retries.includes(j) && s.kind !== "failed" ? `<span class="tk__retry" title="Failed on attempt 1, retried">${ic("cross")}1</span>` : "";
+    const sr = `<span class="sr-only">${STAGES[j]}: ${past ? "passed" : head ? (s.kind === "running" ? "running" : "waiting") : "not reached"}</span>`;
+    return `<span class="${cls}" style="--i:${i}">${inner}${retry}${sr}</span>`;
+  }).join("");
+}
+function laneStatus(l) {
+  const { s, f } = l;
+  if (s.kind === "drafted") return `${status("done", "Drafted")}<small>in ${(SCHED[f.id][1] - SCHED[f.id][0]).toFixed(1)} s${s.retries.length ? ", 1 retry" : ""}</small>`;
+  if (s.kind === "queued") return `${status("queued", "Queued")}<small>waiting for a worker</small>`;
+  if (s.kind === "failed") return `${status("fail", "Failed triage")}<small>after 3 attempts</small>`;
+  const since = { "F-1011": 15.17, "F-1012": 11.98, "F-1013": 12.64, "F-1014": 12.98 }[f.id];
+  return `${status("running", STAGES[s.pos])}<small>attempt ${s.attempt}, <span data-live="${since}">${(NOW_MID - since).toFixed(1)} s</span></small>`;
+}
+function laneTicket(l) {
+  const { s, f } = l;
+  if (s.kind === "failed") return `<span class="ucell ucell--sm ucell--today" title="Urgency 10, Today, failed triage">10</span><span class="failed">${TKT(f.id)}<br>failed</span>`;
+  if (s.kind !== "drafted") return "";
+  const u = urgencyOf(f.id);
+  return `<span class="ucell ucell--sm ucell--${u.band[0]}" title="Urgency ${u.score}, ${u.band[1]}">${u.score}</span><a class="tid" href="?tab=tickets">${TKT(f.id)}</a>`;
+}
+function ctx(f) {
+  const eq = EQ[f.eq];
+  return `<div class="ctx">
+    <h3>Finding ${f.id}</h3>
+    <p class="ctx__q">${esc(f.desc)}</p>
+    <dl><dt>Reported</dt><dd>${fmtDate(f.date)} by ${f.by}, ${f.role}</dd><dt>Inspection</dt><dd>${f.itype}, ${f.method}</dd>
+    <dt>Asset</dt><dd><b class="tag">${eq.id}</b> ${eq.service}</dd><dt>Registry</dt><dd>Criticality ${eq.crit}, reliability ${eq.rel} (start likelihood ${11 - eq.rel})</dd></dl>
+    <div class="ctx__acts"><button type="button" class="btn btn--secondary btn--sm" onclick="sheet('${f.id}')">${ic("doc")}View prompt</button></div>
+  </div>`;
+}
+function laneHTML(l, i) {
+  const { f, s } = l, eq = EQ[f.eq], isOpen = open.has(f.id);
+  return `<li class="lane ${isOpen ? "is-open" : ""} is-${s.kind}" data-id="${f.id}">
+    <div class="lane__row" onclick="toggle('${f.id}')">
+      <button type="button" class="lane__x" aria-expanded="${isOpen}" aria-controls="open-${f.id}" aria-label="${isOpen ? "Hide" : "Show"} events for ${f.id}" onclick="event.stopPropagation();toggle('${f.id}')">${ic("chev")}</button>
+      <span class="lane__f">${f.id}</span>
+      <span class="lane__eq"><span class="tag" data-f="${f.id}">${eq.id}${eq.sce ? '<abbr class="sce" title="Safety Critical Element">SCE</abbr>' : ""}</span><small>${eq.type}</small></span>
+      <span class="lane__track">${track(s, i)}</span>
+      <span class="lane__st">${laneStatus(l)}</span>
+      <span class="lane__tk">${laneTicket(l)}</span>
+    </div>
+    ${isOpen ? `<div class="lane__open" id="open-${f.id}"><div><h3>Events</h3>${ladder(eventsFor(f.id))}</div>${ctx(f)}</div>` : ""}
+  </li>`;
+}
+function batchHTML() {
+  const isOpen = open.has("batch");
+  const s = { kind: "drafted", pos: 2, retries: [] };
+  const t = STAGES.map((_, j) => j >= 2 ? `<span class="tk tk--void"></span>` : `<span class="tk ${j === 0 ? "is-first in-r" : "is-last in-l"} is-past"><span class="tk__node"></span></span>`).join("");
+  return `<li class="lane lane--batch ${isOpen ? "is-open" : ""}">
+    <div class="lane__row" onclick="toggle('batch')">
+      <button type="button" class="lane__x" aria-expanded="${isOpen}" aria-label="${isOpen ? "Hide" : "Show"} batch events" onclick="event.stopPropagation();toggle('batch')">${ic("chev")}</button>
+      <span class="lane__f">Batch</span>
+      <span class="lane__eq"><span class="tag" data-f="">All 21 findings</span><small>Runs once before the workers</small></span>
+      <span class="lane__track">${t}</span>
+      <span class="lane__st">${status("done", "12 notes")}<small>on 12 findings</small></span>
+      <span class="lane__tk"></span>
+    </div>
+    ${isOpen ? `<div class="lane__open"><div><h3>Process events</h3>${ladder(batchEvents())}</div><div></div></div>` : ""}
+  </li>`;
+}
+function stageHead() {
+  return STAGES.map((name, j) => {
+    const passed = lanes.filter((l) => l.s.pos > j || (l.s.kind === "failed" && j <= 8 && l.s.pos >= j)).length;
+    const here = lanes.filter((l) => l.s.kind === "running" && l.s.pos === j);
+    const waiting = j === 2 ? lanes.filter((l) => l.s.kind === "queued").length : 0;
+    const complete = passed === 21;
+    return `<div class="stg ${complete ? "is-complete" : ""} ${here.length ? "is-active" : ""}">
+      <div class="stg__top"><span class="stg__n">${j + 1}</span></div>
+      <span class="stg__name">${name}</span>
+      <span class="stg__count"><b data-count>${passed}</b> passed</span>
+      ${here.length ? `<span class="stg__now" aria-label="In this stage now">${here.map((l) => `<span>${ic("ring")}${l.f.id}</span>`).join("")}</span>` : ""}
+      ${waiting ? `<span class="stg__wait">${waiting} waiting</span>` : ""}
+    </div>`;
+  }).join("");
+}
+function header() {
+  const c = counts();
+  const remaining = c.running + c.queued;
+  const elapsed = STATE === "mid" ? NOW_MID : 24.71;
+  const badge = STATE === "mid" ? status("running", "Running", "status--lg") : STATE === "failed" ? status("fail", "Done, 1 failed triage", "status--lg") : status("done", "Done", "status--lg");
+  const bandCounts = BANDS.map((b) => [b, lanes.filter((l) => (l.s.kind === "failed" ? b[0] === "today" : l.s.kind === "drafted" && urgencyOf(l.f.id).band[0] === b[0])).length]);
+  const acts = STATE === "mid"
+    ? `<button type="button" class="btn btn--quiet">${ic("stop")}Cancel process</button>`
+    : `<button type="button" class="btn btn--secondary">${ic("download")}Export tickets.json</button><a class="btn btn--primary" href="?tab=tickets&state=${STATE}">Review tickets</a>`;
+  return `<div class="pwrap">
+  <div class="phead">
+    <div>
+      <a class="crumb" href="mockup-workspace.html?step=4">${ic("back")}Processes</a>
+      <h1>Process 3 ${badge}</h1>
+      <p class="phead__meta">Started 16 Oct 2026, 13:24:08 with rules v2 and ${MODEL} on 4 workers. 21 findings from inspection_findings.csv.</p>
+    </div>
+    <div class="phead__actions">${acts}</div>
+  </div>
+  <dl class="stats" aria-label="Process counts">
+    <div class="stat"><dt>Drafted</dt><dd><span data-count>${c.drafted}</span><small>of 21</small></dd></div>
+    <div class="stat ${c.failed ? "stat--fail" : "stat--zero"}"><dt>Failed</dt><dd>${c.failed ? ic("cross") : ""}<span data-count>${c.failed}</span></dd></div>
+    <div class="stat ${remaining ? "" : "stat--zero"}"><dt>Remaining</dt><dd><span data-count>${remaining}</span>${remaining ? `<small>${c.running} in progress, ${c.queued} queued</small>` : ""}</dd></div>
+    <div class="stat"><dt>Retried</dt><dd><span data-count>2</span></dd></div>
+    <div class="stat"><dt>${STATE === "mid" ? "Elapsed" : "Took"}</dt><dd><span id="clock">${STATE === "mid" ? clock(elapsed) : "25 s"}</span></dd></div>
+  </dl>
+  ${STATE === "mid"
+    ? `<div class="pprog"><div class="prog" role="progressbar" aria-label="Findings drafted" aria-valuemin="0" aria-valuemax="21" aria-valuenow="${c.drafted}"><div class="prog__fill" style="width:${(c.drafted / 21) * 100}%"></div></div>
+       <p class="pprog__cap"><span>${c.drafted} of 21 drafted</span><span>About 10 s left at the current pace</span></p></div>`
+    : `<div class="pprog"><div class="dist" aria-hidden="true">${bandCounts.filter(([, n]) => n).map(([b, n]) => `<span class="bg-${b[0]}" style="flex-grow:${n}"></span>`).join("")}</div>
+       <p class="dist-legend">${bandCounts.map(([b, n]) => `<span><i class="sw bg-${b[0]}"></i>${b[1]} <b>${n}</b></span>`).join("")}</p></div>`}
+  <nav class="tabs" role="tablist" aria-label="Process views">
+    <a class="tab" role="tab" href="?state=${STATE}" aria-selected="${TAB === "pipeline"}">Pipeline</a>
+    <a class="tab" role="tab" href="?tab=tickets&state=${STATE}" aria-selected="${TAB === "tickets"}">Tickets <span class="tab__n" data-count>${c.drafted + c.failed}</span></a>
+  </nav>
+</div>`;
+}
+function filters() {
+  const c = counts();
+  const chips = [["all", "All", 21], ["running", "In progress", c.running], ["queued", "Queued", c.queued], ["drafted", "Drafted", c.drafted], ["retried", "Retried", 2], ["failed", "Failed", c.failed]];
+  return `<div class="pfilters" role="group" aria-label="Filter lanes">${chips.map(([id, label, n]) => `<button type="button" class="fchip" aria-pressed="${filter === id}" onclick="setFilter('${id}')">${label}<span class="fchip__n">${n}</span></button>`).join("")}
+    <span class="pfilters__note">Lanes keep finding order while they run, so nothing jumps under the pointer.</span></div>`;
+}
+function matrix() {
+  const keep = (l) => filter === "all" || (filter === "retried" ? l.s.retries.length : l.s.kind === filter);
+  return `<section class="matrix" aria-label="Pipeline by finding">
+    <div class="mhead"><div class="h-lane"><ul class="legend" aria-label="Track key"><li><span class="lg lg--past"></span>Passed</li><li>${ic("ring")}In the stage now</li><li>${ic("pending")}Waiting for a worker</li><li><span class="lg-x">${ic("cross")}1</span>Attempt 1 failed, retried</li></ul>Finding and equipment</div>${stageHead()}<div class="h-st">State</div><div class="h-tk">Ticket</div></div>
+    <ol class="lanes ${STATE === "mid" && !STILL ? "first" : ""}">${filter === "all" ? batchHTML() : ""}${lanes.filter(keep).map(laneHTML).join("")}</ol>
+  </section>`;
+}
+function steps() {
+  const n = (s) => ({ n: s[0], label: s[1], sub: s[2], state: s[3], href: s[4] });
+  return [n([1, "Knowledge", "domain_knowledge.md", "done", "mockup-workspace.html?step=1"]), n([2, "Assets", "18 assets", "done", "mockup-workspace.html?step=2"]),
+    n([3, "Rules", "v2 approved", "done", "mockup-workspace.html?step=3&state=versions"]), n([4, "Process", STATE === "mid" ? "Process 3 running" : "3 processes", "done", "mockup-workspace.html?step=4"])];
+}
+function render() {
+  const body = TAB === "tickets"
+    ? `<iframe class="tickets-frame" title="Tickets" src="mockup-tickets.html?embed=1${Q.get("theme") ? "&theme=" + Q.get("theme") : ""}"></iframe>`
+    : `${filters()}${matrix()}`;
+  document.getElementById("app").innerHTML = `${topbar(steps(), 4)}<main class="proc">${header()}${body}</main>`;
+}
+function toggle(id) { open.has(id) ? open.delete(id) : open.add(id); render(); }
+function setFilter(id) { filter = id; render(); }
+function sheet(fid) {
+  const f = FINDINGS.find((x) => x.id === fid), eq = EQ[f.eq];
+  const el = document.createElement("div");
+  el.innerHTML = `<div class="scrim" onclick="this.parentNode.remove()"></div>
+  <aside class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheet-t">
+    <header><h2 id="sheet-t">Prompt for ${fid}</h2><span class="muted">attempt 1</span><button type="button" class="iconbtn" style="margin-left:auto" aria-label="Close" onclick="this.closest('aside').parentNode.remove()">${ic("cross")}</button></header>
+    <div class="sheet__body">
+      <h3>System, 6.1k characters, shared by every finding in this process</h3>
+      <pre>You draft triage for a duty integrity engineer on an offshore platform. Score likelihood of failure and impact of failure only; urgency is computed elsewhere. A human approves every ticket.
+
+REGISTRY SCORES
+criticality score: 1 to 10, 10 is most critical. Starting point for impact.
+reliability score: 1 to 10, 10 is highly reliable. Runs opposite to likelihood; new starters routinely invert it.
+...</pre>
+      <h3>User, built from the ${eq.type} rules section, the asset and the finding</h3>
+      <pre>EQUIPMENT TYPE RULES
+- ${eq.type === "Firewater Pump" ? "Failure to start on demand is the scenario the fire protection philosophy is built to avoid." : "One bullet per rule from the " + eq.type + " section."}
+
+EQUIPMENT
+id: ${eq.id}
+type: ${eq.type}
+criticality: ${eq.crit} of 10, where 10 is most critical
+reliability: ${eq.rel} of 10, where 10 is highly reliable
+safety critical element: ${eq.sce ? "yes" : "no"}
+redundancy as written in the registry: ${esc(eq.red)}
+
+BATCH NOTES
+${(NOTES[fid] || []).map((x) => "- " + x[1]).join("\n") || "- none"}
+
+FINDING
+id: ${f.id}
+description: ${esc(f.desc)}</pre>
+    </div>
+  </aside>`;
+  document.body.appendChild(el);
+}
+render();
+
+/* Live: the clock and in-flight timers tick. The pipeline itself does not advance in the mockup. */
+if (STATE === "mid" && TAB === "pipeline" && !STILL) {
+  const t0 = performance.now();
+  setInterval(() => {
+    const now = NOW_MID + (performance.now() - t0) / 1000;
+    const c = document.getElementById("clock");
+    if (c) c.textContent = clock(now);
+    document.querySelectorAll("[data-live]").forEach((el) => { el.textContent = (now - +el.dataset.live).toFixed(1) + " s"; });
+  }, 100);
+  setTimeout(() => document.querySelector(".lanes")?.classList.remove("first"), 1200);
+}
+</script>
+</body>
+</html>

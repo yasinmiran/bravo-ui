@@ -1,0 +1,1193 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Bravo platform, Triage</title>
+<style>
+/* Triage design tokens.
+ *
+ * Fonts: Atkinson Hyperlegible Next for everything, Atkinson Hyperlegible Mono
+ * only inside the YAML editor. In React prefer the <link> in index.html over
+ * this @import so the font request starts before the CSS parses:
+ *
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap" rel="stylesheet">
+ */
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* Base palette, light. Neutrals derive from RAL 7035 (enclosure grey) and
+     RAL 7016 (anthracite); interaction is RAL 5005 (signal blue). */
+  --plane: #e9ece9;          /* page background, enclosure grey */
+  --surface: #f8f9f7;        /* panels, table body */
+  --surface-sunk: #eff1ee;   /* table header, code, badges */
+  --ink: #22292b;            /* anthracite, primary text */
+  --ink-2: #4b5558;          /* secondary text */
+  --ink-3: #5d676a;          /* muted text; AA on plane, surface and sunk */
+  --rule: #d5dad7;           /* hairline dividers, decorative only */
+  --rule-strong: #7f8987;    /* input and control boundaries, 3:1 */
+  --signal: #1f4f8f;         /* links, primary buttons, focus, selection */
+  --signal-ink: #ffffff;     /* text on --signal */
+  --signal-wash: #e1e9f4;    /* selected row */
+
+  /* Semantic. Never decorative; always paired with an icon and a word. */
+  --ok: #1d6e45;             /* approved, validation passed */
+  --ok-wash: #e2efe7;
+  --danger: #a3164f;         /* rejected, validation failed; crimson, kept clear of the urgency ramp */
+  --danger-wash: #f6e3ea;
+
+  /* Urgency bands. The only warm colour in the product. One hue (safety
+     orange), ordered by distance from the surface: today sits furthest from
+     the page in both themes, so the same band is rust here and peach in dark.
+     Validated with the dataviz ordinal checks against --surface. */
+  --band-today: #9d2800;
+  --band-today-ink: #ffffff;
+  --band-week: #be4500;
+  --band-week-ink: #ffffff;
+  --band-month: #d36c1b;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #d58d52;
+  --band-shutdown-ink: #1a2023;
+  --band-backlog: #d3ab85;
+  --band-backlog-ink: #1a2023;
+
+  /* Type */
+  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-code: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+
+  --fs-xs: 0.75rem;   --lh-xs: 1rem;        /* 12/16 badges, table meta */
+  --fs-sm: 0.8125rem; --lh-sm: 1.125rem;    /* 13/18 secondary, table cells */
+  --fs-base: 0.9375rem; --lh-base: 1.4rem;  /* 15/22.4 body, rationale */
+  --fs-md: 1.0625rem; --lh-md: 1.5rem;      /* 17/24 panel headings, band strips */
+  --fs-lg: 1.25rem;   --lh-lg: 1.625rem;    /* 20/26 screen titles, tag in detail */
+  --fs-xl: 1.5rem;    --lh-xl: 1.875rem;    /* 24/30 score numerals */
+  --fs-2xl: 2rem;     --lh-2xl: 2.25rem;    /* 32/36 rare */
+  --fs-num: 3rem;     --lh-num: 1;          /* 48 urgency numeral in detail */
+
+  --fw-regular: 400;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --fw-heavy: 780;   /* numerals only */
+
+  --measure: 68ch;   /* prose line length */
+
+  /* Space, 4px base */
+  --sp-1: 0.125rem;  /* 2 */
+  --sp-2: 0.25rem;   /* 4 */
+  --sp-3: 0.5rem;    /* 8 */
+  --sp-4: 0.75rem;   /* 12 */
+  --sp-5: 1rem;      /* 16 */
+  --sp-6: 1.5rem;    /* 24 */
+  --sp-7: 2rem;      /* 32 */
+  --sp-8: 3rem;      /* 48 */
+  --sp-9: 4rem;      /* 64 */
+
+  /* Radius by role, not one radius everywhere */
+  --r-strip: 0;      /* table rows, band strips */
+  --r-chip: 3px;     /* chips, badges, score cells */
+  --r-control: 6px;  /* buttons, inputs */
+  --r-panel: 10px;   /* panels, sheets, dialogs */
+
+  --shadow-overlay: 0 8px 24px rgb(34 41 43 / 0.18), 0 1px 3px rgb(34 41 43 / 0.12);
+
+  --hit: 2.75rem;    /* 44px minimum touch target */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--signal);
+
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;            /* layout moves on the lane grid, progress bar */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #1a2023;
+    --surface: #1e2427;
+    --surface-sunk: #262e31;
+    --ink: #e6e9e6;
+    --ink-2: #b4bdbc;
+    --ink-3: #929c9d;
+    --rule: #333c3f;
+    --rule-strong: #6f797c;
+    --signal: #8fb6ee;
+    --signal-ink: #10243f;
+    --signal-wash: #223246;
+    --ok: #72c99d;
+    --ok-wash: #1d3329;
+    --danger: #f28fb4;
+    --danger-wash: #3d2330;
+    --band-today: #ffac5a;
+    --band-today-ink: #1a2023;
+    --band-week: #f68e40;
+    --band-week-ink: #1a2023;
+    --band-month: #de7133;
+    --band-month-ink: #1a2023;
+    --band-shutdown: #af5b39;
+    --band-shutdown-ink: #ffffff;
+    --band-backlog: #824c39;
+    --band-backlog-ink: #ffffff;
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #1a2023;
+  --surface: #1e2427;
+  --surface-sunk: #262e31;
+  --ink: #e6e9e6;
+  --ink-2: #b4bdbc;
+  --ink-3: #929c9d;
+  --rule: #333c3f;
+  --rule-strong: #6f797c;
+  --signal: #8fb6ee;
+  --signal-ink: #10243f;
+  --signal-wash: #223246;
+  --ok: #72c99d;
+  --ok-wash: #1d3329;
+  --danger: #f28fb4;
+  --danger-wash: #3d2330;
+  --band-today: #ffac5a;
+  --band-today-ink: #1a2023;
+  --band-week: #f68e40;
+  --band-week-ink: #1a2023;
+  --band-month: #de7133;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #af5b39;
+  --band-shutdown-ink: #ffffff;
+  --band-backlog: #824c39;
+  --band-backlog-ink: #ffffff;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Shared components */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, p, ol, ul, dl, dd { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--signal); text-underline-offset: 0.18em; }
+abbr[title] { text-decoration: none; }
+.i { width: 1em; height: 1em; flex: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: var(--sp-3); top: -3rem; background: var(--signal); color: var(--signal-ink); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-control); z-index: 10; }
+.skip:focus { top: var(--sp-3); }
+
+/* Top bar with the readiness strip */
+.topbar {
+  display: flex; align-items: center; gap: var(--sp-6);
+  padding: 0 var(--sp-6);
+  min-height: 3.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.wordmark { font-weight: var(--fw-heavy); font-size: var(--fs-md); letter-spacing: -0.01em; }
+.ws {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: var(--hit); padding: 0 var(--sp-3);
+  background: none; border: 0; border-radius: var(--r-control);
+  font-weight: var(--fw-medium); cursor: pointer;
+}
+.ws:hover { background: var(--surface-sunk); }
+.ready { display: flex; align-items: center; gap: var(--sp-5); margin-left: auto; }
+.ready__step { display: flex; align-items: center; gap: var(--sp-3); color: var(--ink-3); }
+.ready__step + .ready__step::before {
+  content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); margin-right: var(--sp-2);
+}
+.ready__n {
+  display: grid; place-items: center;
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+}
+.ready__step.is-done { color: var(--ink); }
+.ready__step.is-done .ready__n { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.ready__step.is-current .ready__t { font-weight: var(--fw-bold); }
+.ready__t { display: flex; flex-direction: column; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ready__s { font-weight: var(--fw-regular); color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.iconbtn {
+  display: inline-grid; place-items: center;
+  width: var(--hit); height: var(--hit);
+  background: none; border: 0; border-radius: var(--r-control); color: var(--ink-2); cursor: pointer;
+}
+.iconbtn:hover { background: var(--surface-sunk); color: var(--ink); }
+
+/* Buttons. Never warm: orange belongs to urgency. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  min-height: var(--hit); padding: 0 var(--sp-5);
+  border-radius: var(--r-control); border: 1px solid transparent;
+  font-weight: var(--fw-bold); font-size: var(--fs-base); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.btn--primary { background: var(--signal); color: var(--signal-ink); }
+.btn--primary:hover { background: color-mix(in oklab, var(--signal) 88%, var(--ink)); }
+.btn--secondary { background: var(--surface); border-color: var(--rule-strong); color: var(--ink); }
+.btn--secondary:hover { background: var(--surface-sunk); }
+.btn--quiet { background: transparent; border-color: var(--rule-strong); color: var(--ink); }
+.btn--quiet:hover { background: var(--surface-sunk); }
+
+/* SCE: the one badge that is always filled, because it is the primary review trigger */
+.sce {
+  display: inline-flex; align-items: center;
+  padding: 0 var(--sp-2); height: 1.125rem;
+  border-radius: var(--r-chip);
+  background: var(--ink); color: var(--surface);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold); letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Equipment tags and ids: same family, heavier, tabular */
+.tag { font-weight: var(--fw-bold); letter-spacing: 0.005em; }
+.tid { font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
+.tid:hover { color: var(--signal); text-decoration: underline; }
+
+/* Filter chips */
+.fchip {
+  display: inline-flex; align-items: center; gap: var(--sp-3);
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer;
+}
+.fchip:hover { background: var(--surface-sunk); }
+.fchip[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface-sunk); }
+.fchip__n { color: var(--ink-3); font-weight: var(--fw-regular); }
+.swatch { width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+.swatch--today, .ucell--today, .dist__seg--today, .nl__seg--today { background: var(--band-today); color: var(--band-today-ink); }
+.swatch--week, .ucell--week, .dist__seg--week, .nl__seg--week { background: var(--band-week); color: var(--band-week-ink); }
+.swatch--month, .ucell--month, .dist__seg--month, .nl__seg--month { background: var(--band-month); color: var(--band-month-ink); }
+.swatch--shutdown, .ucell--shutdown, .dist__seg--shutdown, .nl__seg--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.swatch--backlog, .ucell--backlog, .dist__seg--backlog, .nl__seg--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+.select select, .search input {
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm);
+}
+.search { position: relative; display: inline-flex; align-items: center; }
+.search .i { position: absolute; left: var(--sp-3); color: var(--ink-3); }
+.search input { padding-left: 2rem; width: 13rem; }
+.search input::placeholder, textarea::placeholder { color: var(--ink-3); }
+
+.prose { max-width: var(--measure); color: var(--ink); }
+kbd {
+  display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--sp-1);
+  border: 1px solid var(--rule-strong); border-bottom-width: 2px; border-radius: var(--r-chip);
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2);
+}
+
+
+/* ---- Components added for the workspace steps, the process view and login ---- */
+
+/* The readiness strip becomes the step navigation. Each step is a link; a
+   locked step is a disabled button with its reason underneath. */
+.ready__step { text-decoration: none; }
+a.ready__step, button.ready__step {
+  min-height: var(--hit); padding: 0 var(--sp-2); margin: 0 calc(-1 * var(--sp-2));
+  border: 0; background: none; border-radius: var(--r-control); cursor: pointer;
+}
+a.ready__step:hover { background: var(--surface-sunk); }
+.ready li { display: flex; align-items: center; gap: var(--sp-5); }
+.ready li + li::before { content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); }
+.ready__step.is-locked { cursor: not-allowed; color: var(--ink-3); }
+.ready__step.is-locked .ready__n { border-style: dashed; }
+.ready__step.is-current .ready__n { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ink); }
+.ready__step.is-stale .ready__n { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.ready__s .i { width: 0.75rem; height: 0.75rem; vertical-align: -0.1em; margin-right: 2px; }
+.ready__s.is-danger { color: var(--danger); font-weight: var(--fw-medium); }
+
+/* Status badge: the ticketing-system cue. Outline only, always icon plus word.
+   Ink means the machine finished, ok means a human approved or a check passed,
+   danger means it failed. No fills, so nothing competes with a band. */
+.status {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: 1.5rem; padding: 0 var(--sp-3) 0 var(--sp-2);
+  border: 1px solid var(--rule-strong); border-radius: var(--r-chip);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: var(--fw-bold);
+  color: var(--ink); background: var(--surface); white-space: nowrap;
+}
+.status .i { width: 0.875rem; height: 0.875rem; }
+.status--muted { color: var(--ink-3); border-style: dashed; font-weight: var(--fw-medium); }
+.status--ok { color: var(--ok); }
+.status--danger { color: var(--danger); }
+.status--lg { min-height: 1.75rem; font-size: var(--fs-sm); padding: 0 var(--sp-4) 0 var(--sp-3); }
+
+/* Running marker. The arc turns while work is in flight; under reduced motion
+   it stops and the word beside it still says Running. */
+.spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* Page head shared by the step and process screens */
+.phead { padding: var(--sp-6) var(--sp-7) var(--sp-5); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-4) var(--sp-6); }
+.phead h1 { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-bold); display: flex; align-items: center; gap: var(--sp-4); }
+.phead__meta { color: var(--ink-2); font-size: var(--fs-sm); line-height: var(--lh-sm); margin-top: var(--sp-2); max-width: 72ch; }
+.phead__actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+.crumb { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-2); text-decoration: none; margin-bottom: var(--sp-2); }
+.crumb:hover { color: var(--signal); text-decoration: underline; }
+
+/* Event ladder: one row per event, a rail through the icons. Built straight from
+   {ts, stage, status, title, detail}. */
+.ladder { display: grid; position: relative; }
+.ev { display: grid; grid-template-columns: 4.25rem 1.5rem minmax(0, 1fr); column-gap: var(--sp-3); position: relative; padding-bottom: var(--sp-4); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ev::before { content: ""; position: absolute; left: calc(4.25rem + var(--sp-3) + 0.75rem - 0.5px); top: 1.375rem; bottom: 0; width: 1px; background: var(--rule-strong); }
+.ev:last-child::before { display: none; }
+.ev__t { text-align: right; color: var(--ink-3); font-size: var(--fs-xs); padding-top: 2px; }
+.ev__i { display: grid; place-items: center; width: 1.5rem; height: 1.25rem; position: relative; z-index: 1; }
+.ev__i .i { width: 1rem; height: 1rem; background: var(--surface); border-radius: 50%; }
+.ev__b { min-width: 0; }
+.ev__title { font-weight: var(--fw-bold); color: var(--ink); }
+.ev__stage { font-weight: var(--fw-regular); color: var(--ink-3); margin-right: var(--sp-2); }
+.ev__d { color: var(--ink-2); margin-top: var(--sp-1); max-width: var(--measure); }
+.ev--done .ev__i { color: var(--ink); }
+.ev--pass .ev__i { color: var(--ok); }
+.ev--fail .ev__i { color: var(--danger); }
+.ev--fail .ev__title { color: var(--danger); }
+.ev--start .ev__i, .ev--info .ev__i { color: var(--ink-2); }
+.ev--pending { padding-bottom: var(--sp-3); }
+.ev--pending .ev__i, .ev--pending .ev__title { color: var(--ink-3); font-weight: var(--fw-medium); }
+.ev--pending::before { background: none; border-left: 1px dashed var(--rule-strong); }
+.ev--live .ev__title::after { content: ""; }
+.kv { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-5); margin-top: var(--sp-1); color: var(--ink-2); }
+.kv b { color: var(--ink); font-weight: var(--fw-bold); }
+.err { display: block; margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink); overflow-wrap: anywhere; }
+.subchecks { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
+.subcheck { display: grid; grid-template-columns: 1rem minmax(0, 1fr); gap: var(--sp-2); }
+.subcheck .i { margin-top: 1px; }
+.subcheck.is-pass .i { color: var(--ok); }
+.subcheck.is-fail .i { color: var(--danger); }
+.subcheck.is-fail b { color: var(--danger); }
+.subcheck span { color: var(--ink-2); }
+.tail { margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: 1.25rem; color: var(--ink-2); white-space: pre-wrap; overflow: hidden; position: relative; max-width: 72ch; }
+.tail::after { content: ""; display: inline-block; width: 0.5em; height: 1em; vertical-align: -0.15em; background: var(--ink); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tail::after { animation: none; } }
+
+/* Progress meter: ink on a lighter step of the same neutral. Never orange, never blue. */
+.prog { height: 0.375rem; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.prog__fill { height: 100%; background: var(--ink); border-radius: 3px; transition: width var(--dur-3) var(--ease); }
+
+/* Tabs */
+.tabs { display: flex; gap: var(--sp-5); padding: 0 var(--sp-7); border-bottom: 1px solid var(--rule); }
+.tab { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--hit); padding: 0 var(--sp-1); background: none; border: 0; color: var(--ink-2); font-weight: var(--fw-medium); text-decoration: none; cursor: pointer; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: var(--fw-bold); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--signal); border-radius: 2px 2px 0 0; }
+.tab__n { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2); background: var(--surface-sunk); border-radius: var(--r-chip); padding: 0 var(--sp-2); min-width: 1.5rem; text-align: center; }
+
+/* Panels, fields */
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.field { display: grid; gap: var(--sp-2); }
+.field label, .field__label { font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.input, .textarea, .selectbox {
+  min-height: var(--hit); padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-base); color: var(--ink); width: 100%;
+}
+.textarea { padding: var(--sp-3) var(--sp-4); line-height: var(--lh-base); resize: vertical; }
+.input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.input::placeholder, .textarea::placeholder { color: var(--ink-3); }
+.ferr { display: flex; gap: var(--sp-2); align-items: flex-start; color: var(--danger); font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ferr .i { margin-top: 2px; }
+.btn--sm { min-height: 2.25rem; padding: 0 var(--sp-4); font-size: var(--fs-sm); }
+.btn[disabled], .btn[aria-disabled="true"] { cursor: not-allowed; background: var(--surface-sunk); border-color: var(--rule); color: var(--ink-3); }
+.vstr { font-family: var(--font-code); font-size: var(--fs-xs); background: var(--surface-sunk); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-chip); white-space: nowrap; color: var(--ink); }
+.muted { color: var(--ink-3); }
+.ink2 { color: var(--ink-2); }
+
+/* Toast, used for undo and decisions */
+.toast { position: fixed; right: var(--sp-6); bottom: var(--sp-6); z-index: 20; display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5); background: var(--ink); color: var(--surface); border-radius: var(--r-panel); box-shadow: var(--shadow-overlay); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.toast .btn { min-height: 2.25rem; background: transparent; color: var(--surface); border-color: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--fs-sm); }
+
+/* Band score cell, reused from the tickets list */
+.ucell { display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--r-chip); font-size: var(--fs-md); font-weight: var(--fw-heavy); }
+.ucell--sm { width: 1.75rem; height: 1.75rem; font-size: var(--fs-base); }
+.ucell--today { background: var(--band-today); color: var(--band-today-ink); }
+.ucell--week { background: var(--band-week); color: var(--band-week-ink); }
+.ucell--month { background: var(--band-month); color: var(--band-month-ink); }
+.ucell--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.ucell--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+@media (max-width: 60rem) {
+  .topbar { flex-wrap: wrap; gap: var(--sp-3); padding: 0 var(--sp-4); }
+  .ready { order: 3; width: 100%; margin: 0; padding: var(--sp-1) 0 var(--sp-2); justify-content: space-between; gap: var(--sp-1); }
+  .ready li { gap: 0; }
+  .ready li + li::before { display: none; }
+  .ready__s { display: none; }
+  .themebtn { margin-left: auto; }
+  .phead { padding: var(--sp-5) var(--sp-4) var(--sp-4); }
+  .tabs { padding: 0 var(--sp-4); }
+  .ev { grid-template-columns: 3.25rem 1.5rem minmax(0, 1fr); }
+  .ev::before { left: calc(3.25rem + var(--sp-3) + 0.75rem - 0.5px); }
+  .toast { left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-4); }
+}
+.topbar nav { margin-left: auto; }
+@media (max-width: 60rem) { .topbar nav { order: 3; width: 100%; margin: 0; } }
+a.btn { text-decoration: none; }
+button.ready__step { text-align: left; font: inherit; color: var(--ink-3); }
+
+/* ---- Workspace steps ---- */
+.ws-main { min-height: calc(100vh - 3.5rem); display: flex; flex-direction: column; }
+.ws-grid { display: grid; grid-template-columns: minmax(0, 1fr) 21rem; gap: var(--sp-6); padding: 0 var(--sp-7) var(--sp-7); align-items: start; flex: 1; }
+.ws-grid--full { grid-template-columns: minmax(0, 1fr); }
+.ws-grid > *, .ws-grid > * > * { min-width: 0; }
+.ws-grid--assets { grid-template-columns: minmax(0, 1fr) 17rem; }
+.aside { display: grid; gap: var(--sp-6); align-content: start; position: sticky; top: var(--sp-5); }
+.aside h2, .sec-h { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); margin-bottom: var(--sp-3); display: flex; align-items: baseline; gap: var(--sp-3); }
+.sec-h small, .aside h2 small { font-size: var(--fs-sm); font-weight: var(--fw-regular); color: var(--ink-3); }
+.aside p { font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--ink-2); }
+.next { display: flex; justify-content: flex-end; align-items: center; gap: var(--sp-4); padding: var(--sp-5) var(--sp-7) var(--sp-6); border-top: 1px solid var(--rule); background: var(--surface); }
+.next p { font-size: var(--fs-sm); color: var(--ink-2); margin-right: auto; }
+
+.checks { display: grid; gap: var(--sp-4); }
+.check { display: grid; grid-template-columns: 1.25rem 1fr; gap: var(--sp-3); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.check .i { width: 1.125rem; height: 1.125rem; margin-top: 1px; }
+.check b { display: block; font-weight: var(--fw-bold); }
+.check span { color: var(--ink-2); }
+.check.is-pass .i { color: var(--ok); }
+.check.is-fail .i { color: var(--danger); }
+.check.is-fail b { color: var(--danger); }
+.check.is-info .i { color: var(--ink-2); }
+
+/* Step 1: the document, set for reading */
+.docview { padding: var(--sp-7) var(--sp-8) var(--sp-8); }
+.docview h1 { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-heavy); margin-bottom: var(--sp-4); max-width: var(--measure); }
+.docview h2 { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); margin: var(--sp-7) 0 var(--sp-3); scroll-margin-top: var(--sp-5); }
+.docview p, .docview li { max-width: var(--measure); line-height: 1.5rem; }
+.docview p + p { margin-top: var(--sp-4); }
+.docview ul { display: grid; gap: var(--sp-2); margin-top: var(--sp-3); }
+.docview li { position: relative; padding-left: var(--sp-5); }
+.docview li::before { content: ""; position: absolute; left: var(--sp-1); top: 0.65em; width: 0.375rem; height: 0.375rem; border-radius: 1px; background: var(--ink-3); }
+.docview code { font-family: var(--font-code); font-size: 0.875em; background: var(--surface-sunk); padding: 0 var(--sp-2); border-radius: var(--r-chip); }
+.docbar { display: flex; align-items: center; gap: var(--sp-3); padding: var(--sp-3) var(--sp-5); border-bottom: 1px solid var(--rule); font-size: var(--fs-sm); color: var(--ink-2); background: var(--surface-sunk); border-radius: var(--r-panel) var(--r-panel) 0 0; }
+.docbar b { color: var(--ink); }
+.outline { display: grid; gap: var(--sp-1); }
+.outline a { display: flex; gap: var(--sp-3); min-height: 2rem; align-items: center; padding: 0 var(--sp-3); margin: 0 calc(-1 * var(--sp-3)); border-radius: var(--r-control); font-size: var(--fs-sm); color: var(--ink); text-decoration: none; }
+.outline a:hover { background: var(--surface-sunk); }
+.outline a span { color: var(--ink-3); min-width: 1rem; }
+.facts { display: grid; grid-template-columns: auto 1fr; gap: var(--sp-2) var(--sp-5); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.facts dt { color: var(--ink-3); }
+.facts dd { font-weight: var(--fw-medium); }
+
+.drop { display: grid; justify-items: start; gap: var(--sp-4); padding: var(--sp-8) var(--sp-7); border: 1.5px dashed var(--rule-strong); border-radius: var(--r-panel); background: var(--surface); }
+.drop h2 { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); display: flex; align-items: center; gap: var(--sp-3); }
+.drop h2 .i { width: 1.25rem; height: 1.25rem; color: var(--ink-2); }
+.drop p { color: var(--ink-2); max-width: var(--measure); }
+.drop__acts { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+
+/* Step 2: the asset table */
+.tablescroll { position: relative; overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.grid-t { width: 100%; border-collapse: separate; border-spacing: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.grid-t th { position: sticky; top: 0; background: var(--surface-sunk); color: var(--ink-2); font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: var(--fw-medium); text-align: left; padding: var(--sp-3); border-bottom: 1px solid var(--rule); white-space: nowrap; vertical-align: bottom; }
+.grid-t th small { display: block; color: var(--ink-3); font-weight: var(--fw-regular); }
+.grid-t th:first-child { border-top-left-radius: var(--r-panel); }
+.grid-t th:last-child { border-top-right-radius: var(--r-panel); }
+.grid-t td { padding: var(--sp-4) var(--sp-3); border-bottom: 1px solid var(--rule); vertical-align: top; }
+.grid-t tr:last-child td { border-bottom: 0; }
+.grid-t th:first-child, .grid-t td:first-child { padding-left: var(--sp-5); }
+.grid-t th:last-child, .grid-t td:last-child { padding-right: var(--sp-4); }
+.grid-t tbody tr:hover td { background: var(--surface-sunk); }
+.c-num { text-align: right; font-size: var(--fs-base); font-weight: var(--fw-bold); width: 4.5rem; }
+.grid-t th.c-num { text-align: right; }
+.c-id { white-space: nowrap; width: 11rem; }
+.eqtype { display: block; color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); margin-top: 2px; }
+.stack { display: grid; gap: var(--sp-2); }
+.yn { display: flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-xs); color: var(--ink-2); }
+.yn .cell-in { width: auto; }
+.c-id .tag { font-size: var(--fs-base); }
+.c-id .sce { margin-left: var(--sp-2); vertical-align: 0.1em; }
+.c-type { white-space: nowrap; }
+.c-svc { min-width: 10rem; max-width: 13rem; color: var(--ink-2); }
+.c-red { white-space: nowrap; }
+.c-com { min-width: 20rem; }
+.c-com p { display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; color: var(--ink-2); cursor: text; }
+.c-com p:hover { color: var(--ink); text-decoration: underline dotted var(--rule-strong); text-underline-offset: 0.25em; }
+.c-act { white-space: nowrap; width: 5.5rem; }
+.c-act .iconbtn { width: 2.25rem; height: 2.25rem; }
+.yn-no { color: var(--ink-3); }
+tr.is-editing td { background: var(--signal-wash) !important; vertical-align: top; }
+tr.is-editing td:first-child { box-shadow: inset 3px 0 0 var(--signal); }
+.cell-in { min-height: 2.25rem; padding: 0 var(--sp-3); width: 100%; background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control); font-size: var(--fs-sm); }
+.cell-in--num { width: 3.75rem; text-align: right; font-weight: var(--fw-bold); }
+.cell-in--code { font-family: var(--font-code); font-size: var(--fs-xs); }
+textarea.cell-in { padding: var(--sp-2) var(--sp-3); line-height: 1.25rem; resize: vertical; min-height: 7.5rem; }
+.edit-acts { display: flex; gap: var(--sp-2); margin-top: var(--sp-3); align-items: center; flex-wrap: wrap; }
+.edit-acts small { color: var(--ink-3); font-size: var(--fs-xs); }
+.tbl-head { display: flex; align-items: center; justify-content: space-between; gap: var(--sp-4); margin-bottom: var(--sp-3); }
+.vocab { display: grid; gap: 0; font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.vocab li { display: flex; justify-content: space-between; gap: var(--sp-4); padding: var(--sp-2) 0; border-top: 1px solid var(--rule); }
+.vocab li:last-child { border-bottom: 1px solid var(--rule); }
+.vocab b { font-weight: var(--fw-bold); min-width: 1.5rem; text-align: right; }
+.vocab .vstr { white-space: normal; }
+
+/* Step 3 */
+.xpanel { padding: var(--sp-5) var(--sp-6) var(--sp-4); }
+.xpanel__h { display: flex; align-items: center; gap: var(--sp-4); margin-bottom: var(--sp-5); flex-wrap: wrap; }
+.xpanel__h h2 { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); }
+.xpanel__h .muted { font-size: var(--fs-sm); }
+.xpanel__h .btn { margin-left: auto; }
+.keys { display: flex; flex-wrap: wrap; gap: var(--sp-2); margin-top: var(--sp-2); }
+.keys span:not(.vstr) { font-size: var(--fs-xs); padding: 0 var(--sp-2); border: 1px solid var(--rule); border-radius: var(--r-chip); background: var(--surface-sunk); color: var(--ink); }
+.ver-t td { vertical-align: middle; }
+.ver-t .c-v { font-weight: var(--fw-heavy); width: 3.5rem; font-size: var(--fs-base); }
+.ver-t .c-v.is-cur { color: var(--signal); }
+.ver-t .sub { display: block; color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); margin-top: 2px; }
+.cov { display: inline-flex; align-items: center; gap: var(--sp-2); }
+.cov .i { color: var(--ok); }
+.cov.is-fail { color: var(--danger); font-weight: var(--fw-medium); }
+.cov.is-fail .i { color: var(--danger); }
+.stale { padding: var(--sp-5) var(--sp-6); border-color: var(--danger); margin-bottom: var(--sp-6); display: grid; gap: var(--sp-4); }
+.stale h2 { display: flex; align-items: center; gap: var(--sp-3); font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); }
+.stale h2 .i { color: var(--danger); width: 1.25rem; height: 1.25rem; }
+.stale > p { color: var(--ink-2); max-width: var(--measure); }
+.stale__acts { display: flex; gap: var(--sp-3); flex-wrap: wrap; }
+.gaps { display: grid; gap: var(--sp-3); }
+.gaps li { display: grid; grid-template-columns: 1.25rem 1fr; gap: var(--sp-3); }
+.gaps .i { color: var(--danger); margin-top: 3px; }
+.gaps b { font-weight: var(--fw-bold); }
+.gaps span { color: var(--ink-2); }
+.ready-x { display: grid; gap: var(--sp-5); padding: var(--sp-6); justify-items: start; }
+.ready-x > p { color: var(--ink-2); max-width: var(--measure); }
+
+/* Step 4 */
+.filebar { display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-4) var(--sp-5); border-bottom: 1px solid var(--rule); flex-wrap: wrap; }
+.filebar__n { display: flex; align-items: center; gap: var(--sp-3); font-weight: var(--fw-bold); }
+.filebar__n .i { color: var(--ink-2); width: 1.25rem; height: 1.25rem; }
+.filebar__m { color: var(--ink-2); font-size: var(--fs-sm); }
+.filebar .btn:first-of-type { margin-left: auto; }
+.vsum { display: flex; flex-wrap: wrap; gap: var(--sp-3) var(--sp-6); padding: var(--sp-4) var(--sp-5); font-size: var(--fs-sm); line-height: var(--lh-sm); border-bottom: 1px solid var(--rule); align-items: center; }
+.vsum .check { display: inline-grid; }
+.vsum .fchip { margin-left: auto; }
+.fd-t .c-desc p { display: -webkit-box; -webkit-line-clamp: 1; -webkit-box-orient: vertical; overflow: hidden; color: var(--ink-2); max-width: 34rem; }
+.fd-t .c-chk { min-width: 15rem; }
+.rowmsg { display: grid; grid-template-columns: 1rem 1fr; gap: var(--sp-2); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.rowmsg .i { margin-top: 1px; }
+.rowmsg--danger { color: var(--danger); font-weight: var(--fw-bold); }
+.rowmsg--info { color: var(--ink); }
+.rowmsg--info .i { color: var(--ink-2); }
+.fd-t tr.is-blocking td:first-child { box-shadow: inset 3px 0 0 var(--danger); }
+.scroll { max-height: 27rem; overflow-y: auto; }
+.fd-t td { padding-top: var(--sp-3); padding-bottom: var(--sp-3); }
+.submitbar { display: flex; align-items: flex-end; gap: var(--sp-5); padding: var(--sp-4) var(--sp-5); border-top: 1px solid var(--rule-strong); background: var(--surface); border-radius: 0 0 var(--r-panel) var(--r-panel); flex-wrap: wrap; }
+.submitbar .field { min-width: 18rem; }
+.submitbar .selectbox { min-height: var(--hit); font-size: var(--fs-sm); }
+.submitbar__why { font-size: var(--fs-sm); line-height: var(--lh-sm); color: var(--ink-2); max-width: 36rem; margin-left: auto; text-align: right; }
+.submitbar__why.is-danger { color: var(--danger); font-weight: var(--fw-medium); }
+.submitbar .btn--primary { min-width: 11rem; }
+.ptable .c-n { text-align: right; font-weight: var(--fw-bold); }
+.ptable th.c-n { text-align: right; }
+.ptable a.pl { font-weight: var(--fw-bold); color: var(--ink); text-decoration: none; }
+.ptable a.pl:hover { color: var(--signal); text-decoration: underline; }
+.ptable .err-line { display: block; color: var(--ink-2); font-size: var(--fs-xs); margin-top: 2px; }
+
+/* Dialog */
+.scrim { position: fixed; inset: 0; background: rgb(20 26 28 / 0.45); z-index: 30; display: grid; place-items: center; padding: var(--sp-5); }
+.dialog { width: min(32rem, 100%); background: var(--surface); border-radius: var(--r-panel); box-shadow: var(--shadow-overlay); padding: var(--sp-6); display: grid; gap: var(--sp-4); }
+.dialog h2 { font-size: var(--fs-md); line-height: var(--lh-md); font-weight: var(--fw-bold); }
+.dialog p { color: var(--ink-2); font-size: var(--fs-sm); line-height: 1.25rem; }
+.dialog__file { display: grid; gap: var(--sp-1); padding: var(--sp-3) var(--sp-4); background: var(--surface-sunk); border-radius: var(--r-chip); font-size: var(--fs-sm); }
+.dialog__acts { display: flex; justify-content: flex-end; gap: var(--sp-3); margin-top: var(--sp-2); }
+.dialog code { font-family: var(--font-code); font-size: var(--fs-xs); }
+
+.is-new { animation: evIn var(--dur-2) var(--ease); }
+@keyframes evIn { from { opacity: 0; transform: translateY(-4px); } }
+
+@media (max-width: 75rem) {
+  .ws-grid { grid-template-columns: minmax(0, 1fr) 18rem; }
+  .docview { padding: var(--sp-6); }
+}
+@media (max-width: 60rem) {
+  .ws-grid { grid-template-columns: minmax(0, 1fr); padding: 0 var(--sp-4) var(--sp-6); }
+  .aside { position: static; }
+  .next { padding: var(--sp-4); }
+  .next p { display: none; }
+  .next .btn { flex: 1; }
+  .docview { padding: var(--sp-5) var(--sp-4); }
+  .phead__actions { width: 100%; }
+  .phead__actions .btn { flex: 1; }
+  .grid-t td:first-child, .grid-t th:first-child { position: sticky; left: 0; z-index: 1; background: var(--surface); box-shadow: 1px 0 0 var(--rule); }
+  .grid-t th:first-child { background: var(--surface-sunk); z-index: 2; }
+  .xpanel { padding: var(--sp-4); }
+  .submitbar__why { text-align: left; margin-left: 0; }
+  .submitbar .field, .submitbar .btn { width: 100%; min-width: 0; }
+  .filebar .btn:first-of-type { margin-left: 0; }
+  .vsum .fchip { margin-left: 0; }
+  .stale { padding: var(--sp-4); }
+  .c-act .iconbtn { width: var(--hit); height: var(--hit); }
+}
+</style>
+</head>
+<body>
+<div id="app"></div>
+<script>
+const Q = new URLSearchParams(location.search);
+if (Q.get("theme")) document.documentElement.dataset.theme = Q.get("theme");
+const STILL = Q.has("still");
+
+const P = {
+  check: '<path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  cross: '<path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  ring: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".3"/><path class="spin" d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  pending: '<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>',
+  hollow: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  dot: '<circle cx="8" cy="8" r="4.5" fill="currentColor"/>',
+  info: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.25v4M8 4.6v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.75 3 1.75 3h-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>',
+  lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+  chev: '<path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+  down: '<path d="M4.5 6.5L8 10l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  back: '<path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  upload: '<path d="M8 11V3M4.5 6.5L8 3l3.5 3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  download: '<path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  plus: '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  trash: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  pencil: '<path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  doc: '<path d="M4 1.75h5L12.25 5v9.25H4z M9 1.75V5h3.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  paste: '<rect x="3.5" y="3" width="9" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 3V2h4v1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 7.5h4M6 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  theme: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/>',
+  play: '<path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  refresh: '<path d="M13 8a5 5 0 1 1-1.5-3.55M13 2.75v2.5h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  sheet: '<path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M6.5 6.5v6" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+};
+const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 16 16" aria-hidden="true">${P[n]}</svg>`;
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function status(kind, word, extra = "") {
+  const map = {
+    running: ["", "ring"], queued: ["status--muted", "pending"], done: ["", "check"],
+    ok: ["status--ok", "check"], fail: ["status--danger", "cross"], draft: ["status--muted", "pencil"],
+    info: ["", "info"], locked: ["status--muted", "lock"],
+  };
+  const [cls, icon] = map[kind];
+  return `<span class="status ${cls} ${extra}">${ic(icon)}${word}</span>`;
+}
+
+function toggleTheme() {
+  const r = document.documentElement;
+  const dark = r.dataset.theme === "dark" || (!r.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  r.dataset.theme = dark ? "light" : "dark";
+}
+
+/* steps: [{n, label, sub, state: done|current|locked|stale|todo, href, why}] */
+function topbar(steps, current) {
+  const items = steps.map((s) => {
+    const cls = ["ready__step", s.state === "done" ? "is-done" : "", s.n === current ? "is-current" : "",
+      s.state === "locked" ? "is-locked" : "", s.state === "stale" ? "is-stale" : ""].join(" ");
+    const sub = s.state === "stale" ? `<span class="ready__s is-danger">${ic("cross")}${s.sub}</span>`
+      : s.state === "locked" ? `<span class="ready__s">${ic("lock")}${s.sub}</span>`
+      : `<span class="ready__s">${s.sub}</span>`;
+    const inner = `<span class="ready__n">${s.n}</span><span class="ready__t">${s.label}${sub}</span>`;
+    return s.state === "locked"
+      ? `<li><button type="button" class="${cls}" aria-disabled="true" title="${s.why}">${inner}</button></li>`
+      : `<li><a class="${cls}" href="${s.href}"${s.n === current ? ' aria-current="page"' : ""}>${inner}</a></li>`;
+  }).join("");
+  return `<header class="topbar">
+  <span class="wordmark">Triage</span>
+  <button type="button" class="ws">Bravo platform${ic("down")}</button>
+  <nav aria-label="Workspace steps"><ol class="ready">${items}</ol></nav>
+  <button type="button" class="iconbtn themebtn" onclick="toggleTheme()" aria-label="Switch theme">${ic("theme")}</button>
+</header>`;
+}
+
+const secs = (t) => t < 60 ? t.toFixed(2) + " s" : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+function ladder(evs) {
+  const icon = { done: "check", pass: "check", fail: "cross", info: "info", start: "ring", pending: "pending", wait: "pending" };
+  const cls = { done: "ev--done", pass: "ev--pass", fail: "ev--fail", info: "ev--info", start: "ev--start", pending: "ev--pending", wait: "ev--pending" };
+  return `<ol class="ladder">${evs.map((e) => `<li class="ev ${cls[e.status]}">
+    <span class="ev__t">${e.ts == null ? "" : secs(e.ts)}</span>
+    <span class="ev__i">${ic(icon[e.status])}</span>
+    <div class="ev__b"><p class="ev__title"><span class="ev__stage">${e.stage}</span>${e.title}${e.status === "start" ? '<span class="sr-only">, running</span>' : ""}</p>${e.body && e.body.startsWith("<") ? e.body : e.body ? `<p class="ev__d">${e.body}</p>` : ""}</div>
+  </li>`).join("")}</ol>`;
+}
+
+
+/* Bravo content shared by the workspace and process mockups. */
+const REGISTRY = [
+  ["K-3401","Centrifugal Compressor","Main gas export compressor train",10,7,false,"None","Single train, no spare, no workaround. If it trips the platform goes to recycle and production is cut within the hour. Vibration is trended daily and anything unusual gets a rotating equipment specialist the same day."],
+  ["P-3305","Reciprocating Pump","Chemical injection - corrosion inhibitor",7,4,false,"None","Fussy little unit, diaphragm failures every few months. Losing it does not stop production so it gets deprioritised, but inhibitor starvation means the downstream carbon steel starts corroding within weeks. The consequence lands six months later on someone else's desk."],
+  ["V-1201","Pressure Vessel","First stage production separator",9,8,true,"None","Thick walled and historically trouble free, but it is the pressure boundary for the entire first stage. Any indication of wall loss, cracking or weeping goes to the integrity engineer regardless of how small it looks."],
+  ["V-1305","Pressure Vessel","Test separator",4,8,false,"Yes (bypass available)","Only used during well testing. Can be isolated and bypassed indefinitely with no production impact. Findings here can usually wait for the next planned shutdown."],
+  ["V-2450","Pressure Vessel","Fuel gas scrubber",7,7,false,"None","Protects the turbines from liquid carryover. Not glamorous, but a liquid slug into a gas turbine is an expensive afternoon."],
+  ["PSV-1310","Pressure Safety Valve","Overpressure protection for V-1201",9,7,true,"None","Certified relief device on a two year pop test cycle. Any evidence of passing or weeping is treated as an impairment of a protection layer, not as a maintenance nuisance. There is a regulatory clock on impaired relief devices."],
+  ["PSV-3420","Pressure Safety Valve","Overpressure protection for compressor discharge",9,8,true,"None","Same regime as PSV-1310. Recently recertified and behaving itself."],
+  ["FG-0455","Gas Detector","Point IR hydrocarbon gas detector - compression module",9,6,true,"Voted 2oo3","Detectors in this module drift with salt and humidity. Calibration slippage is common and mostly benign; a head that fails to respond to test gas is not benign."],
+  ["INST-2150","Level Transmitter","Interface level transmitter on V-1201 - duty",7,6,false,"Duplicated (INST-2151)","Drifts. Feeds both control and the high level alarm. Operators generally know when it is lying to them, but relying on operator intuition is not a control measure we are allowed to write down."],
+  ["INST-2151","Level Transmitter","Interface level transmitter on V-1201 - backup",6,7,false,"Duplicated (INST-2150)","Installed as the second leg after a near miss in 2021. Keeping both legs healthy is the whole point of the arrangement."],
+  ["FW-8101","Firewater Pump","Diesel driven firewater pump A",10,7,true,"N+1 (FW-8102)","One of two diesel firewater pumps, weekly test run. Failure to start on demand is the scenario the whole fire protection philosophy is built to avoid. Both pumps unavailable at once means production shutdown."],
+  ["FW-8102","Firewater Pump","Diesel driven firewater pump B",10,6,true,"N+1 (FW-8101)","The older of the two. Battery and starting air problems recur. Historically the first one to fail a test start."],
+  ["DEL-8300","Deluge System","Deluge skid and ringmain - wellhead area",10,6,true,"None","Nozzle blockage from marine growth and scale is the recurring issue. Partial blockage reduces coverage over a specific area; the system looks healthy from the skid but is not delivering where it matters."],
+  ["LB-4102","Lifeboat","Freefall lifeboat - port station",10,8,true,"N+1 (LB-4101)","Certified survival craft under class survey. Any defect that could prevent launch reduces the total evacuation capacity of the installation, which is compared against the POB count. That comparison is not negotiable."],
+  ["CR-5001","Pedestal Crane","Main deck pedestal crane",7,5,false,"None","Lifting appliance under a separate certification regime; wire rope and hook inspections are governed by the lifting standard. Out of service means no supply boat offloads, which becomes a logistics problem within days."],
+  ["HVAC-7201","HVAC Unit","Temporary refuge pressurisation unit",9,6,true,"None","Keeps the temporary refuge at positive pressure during a gas release so that people mustering there are not breathing hydrocarbons. Easy to dismiss as building services. It is not building services."],
+  ["SC-1001","Structure","Cellar deck primary support steelwork",9,9,true,"None","Fabric maintenance here is chronically behind, so coating breakdown reports are frequent and mostly cosmetic. Section loss at a node or a cracked weld at a primary connection is a completely different severity and should never be batched with the coating backlog."],
+  ["PL-1002","Piping","6 inch production flowline - manifold to V-1201",8,7,false,"None","Live hydrocarbon line at full wellhead pressure. Corrosion under insulation is the known threat here and it is invisible until the cladding comes off."],
+].map(([id, type, service, crit, rel, sce, red, comment]) => ({ id, type, service, crit, rel, sce, red, comment }));
+const EQ = Object.fromEntries(REGISTRY.map((e) => [e.id, e]));
+
+/* finding id, date, equipment, inspection type, method, reporter, role, description */
+const FINDINGS = [
+  ["F-1001","2026-06-02","K-3401","Condition Monitoring","Vibration Analysis","A. Rasmussen","Rotating Equipment Technician","Overall vibration on the non-drive end bearing has climbed from 2.1 mm/s to 4.6 mm/s over the last six weeks. Spectrum shows a growing 1x component with some sidebands. Not at alarm yet but the trend is clearly upward and it has not plateaued."],
+  ["F-1002","2026-06-03","PSV-1310","Routine Operator Round","Visual / Audible","M. Delacroix","Production Operator","Faint hissing from the PSV outlet tailpipe. You can hear it when the deck is quiet. Cannot see any liquid but there is a light hydrocarbon smell nearby. Set pressure is well above current operating pressure so it should not be lifting."],
+  ["F-1003","2026-06-03","FW-8102","Function Test","Weekly Test Start","S. Whitfield","Mechanical Technician","Pump failed to start on the first attempt during the weekly test. Started on the second attempt after about eight seconds of cranking. Starting batteries measured 22.8 V at rest which is on the low side. Ran normally once started and achieved rated discharge pressure."],
+  ["F-1004","2026-06-04","PL-1002","Corrosion Survey","Insulation Removal + UT","H. Lindqvist","Corrosion Engineer","Removed cladding at three inspection windows on the 6 inch flowline. At window 2 near the low point drain the insulation was saturated and there is heavy scaling on the pipe surface. UT readings at that location give 6.2 mm against a nominal 11.1 mm and a minimum allowable of 7.4 mm. Adjacent windows are within tolerance."],
+  ["F-1005","2026-06-05","FG-0455","Function Test","Bump Test with Span Gas","T. Nakamura","Instrument Technician","Detector head did not respond to 50 percent LEL test gas. Repeated with a second cylinder, still no response. Head appears clean, no obvious damage to the optics. The other two heads in the same voted group responded correctly."],
+  ["F-1006","2026-06-05","CR-5001","Statutory Inspection","Third Party Survey","D. Ferreira","Third Party Lifting Inspector","Annual lifting appliance survey. Main hoist wire rope shows 6 broken wires within one lay length in the section that spools onto the drum at maximum boom radius. Discard criterion for this rope construction is 10 broken wires per lay length. Rope lubrication is poor along the same section. Hook, sheaves and structure all satisfactory."],
+  ["F-1007","2026-06-06","P-3305","Routine Operator Round","Visual","R. Mbeki","Production Operator","Corrosion inhibitor pump has tripped again on low discharge pressure. This is the third time this month. Suspect the diaphragm. Injection to the wellhead manifold has been intermittent for around ten days according to the injection log."],
+  ["F-1008","2026-06-07","SC-1001","Structural Survey","Close Visual + MPI","L. Andersen","Structural Engineer","Crack indication found at the toe of the weld connecting a primary brace to the cellar deck node at grid B4. Confirmed by MPI, length approximately 45 mm. This is a primary structural connection. Surrounding coating is intact so this is not a general fabric issue."],
+  ["F-1009","2026-06-08","SC-1001","Routine Operator Round","Visual","J. Okoye","Production Operator","General coating breakdown across the underside of the cellar deck plating between grids C2 and C5. Rust staining and flaking primer over a large area. This has been reported before and is on the fabric maintenance backlog."],
+  ["F-1010","2026-06-08","HVAC-7201","Function Test","Differential Pressure Test","S. Whitfield","Mechanical Technician","Temporary refuge pressurisation test carried out. Measured differential pressure across the accommodation envelope was 27 Pa against a required minimum of 50 Pa. Fan is running at rated speed. Suspect either a damper not fully closing or degraded door seals somewhere in the envelope."],
+  ["F-1011","2026-06-10","DEL-8300","Function Test","Full Flow Test","S. Whitfield","Mechanical Technician","Annual deluge flow test on the wellhead area ringmain. Approximately 12 of the 60 nozzles in the north quadrant delivered either no flow or a badly distorted spray pattern. Skid pressure and flow at the header were normal, so the blockage is downstream in the branch pipework. The affected quadrant sits directly above two producing wellheads."],
+  ["F-1012","2026-06-11","LB-4102","Statutory Inspection","Class Survey","D. Ferreira","Third Party Marine Surveyor","Hydraulic release mechanism on the freefall lifeboat did not operate cleanly during the annual survey. Required significantly more force than specification and the movement was notchy. Surveyor has withheld the certificate pending overhaul of the release gear. Lifeboat is currently declared unavailable."],
+  ["F-1013","2026-06-11","INST-2150","Condition Monitoring","Data Review","T. Nakamura","Instrument Technician","Interface level transmitter is reading approximately 12 percent higher than the backup transmitter and around 15 percent higher than the sight glass. Divergence has been growing steadily over about three weeks. Control is currently on this transmitter."],
+  ["F-1014","2026-06-12","V-1305","Shutdown Inspection","Internal Visual","H. Lindqvist","Corrosion Engineer","Test separator internals inspected. Inlet deflector plate is partly detached, one of the four support brackets has corroded through. Vessel shell and heads in good condition. Test separator is not currently in service."],
+  ["F-1015","2026-06-16","V-2450","Routine Operator Round","Visual","M. Delacroix","Production Operator","Level gauge glass on the fuel gas scrubber is dirty and hard to read. Level control appears to be working normally on the transmitter. No liquid carryover indications downstream."],
+  ["F-1016","2026-06-16","PSV-3420","Routine Operator Round","Visual","R. Mbeki","Production Operator","Certification tag on the compressor discharge PSV is illegible, the label has corroded. Checked the register and the valve was recertified in March 2025 so it is in date. Physical condition of the valve looks fine."],
+  ["F-1017","2026-06-17","FW-8101","Function Test","Weekly Test Start","S. Whitfield","Mechanical Technician","Firewater pump A started first time and ran up correctly but discharge pressure stabilised at 9.2 barg against a design of 11 barg. Flow was not measured. Engine parameters all normal. Suspect either pump internal wear or a partly closed valve somewhere in the test line."],
+  ["F-1018","2026-06-18","INST-2151","Condition Monitoring","Data Review","T. Nakamura","Instrument Technician","Backup interface level transmitter has been reading a flat line for approximately 36 hours. The value has not moved at all which is not credible for this service. Suspect a blocked impulse line or a failed sensor."],
+  ["F-1019","2026-06-19","K-3401","Routine Operator Round","Visual","M. Delacroix","Production Operator","Lagging on the second stage discharge line has come loose and a section of cladding is flapping in the wind. No process concern but it will end up as a dropped object if left."],
+  ["F-1020","2026-06-21","DEL-8300","Routine Operator Round","Visual","R. Mbeki","Production Operator","Isolation valve on the deluge branch line to the north quadrant was found chained in the closed position with no valve status tag and no entry in the impairment register. Valve was reopened immediately and the control room informed. Unknown how long it had been shut."],
+  ["F-1021","2026-06-22","V-1201","Routine Operator Round","Visual","M. Delacroix","Production Operator","Insulation on the separator shell is damp and stained around the manway area and there is rust staining running down from under the cladding. Cannot see the pipework underneath without removing the insulation."],
+].map(([id, date, eq, itype, method, by, role, desc]) => ({ id, date, eq, itype, method, by, role, desc, type: EQ[eq].type }));
+
+/* Scores from the drafted tickets in mockup-tickets.html */
+const SCORES = {
+  "F-1001":[8,8],"F-1002":[8,9],"F-1003":[9,10],"F-1004":[9,9],"F-1005":[10,8],"F-1006":[4,5],"F-1007":[9,8],
+  "F-1008":[7,9],"F-1009":[3,3],"F-1010":[10,10],"F-1011":[10,10],"F-1012":[10,10],"F-1013":[8,8],"F-1014":[2,2],
+  "F-1015":[2,3],"F-1016":[2,3],"F-1017":[6,9],"F-1018":[9,7],"F-1019":[6,3],"F-1020":[9,10],"F-1021":[6,9],
+};
+const OVERRIDES = { "F-1002":"pl","F-1003":"pl","F-1011":"pl","F-1017":"pl","F-1020":"pl","F-1012":"evac" };
+
+const BANDS = [["today","Today",9],["week","This week",7],["month","This month",5],["shutdown","Next planned shutdown",3],["backlog","Backlog",1]];
+const bandOf = (u) => BANDS.find((b) => u >= b[2]);
+
+function urgencyOf(fid) {
+  const [L, I] = SCORES[fid];
+  const sce = EQ[FINDINGS.find((f) => f.id === fid).eq].sce;
+  const base = 0.7 * I + 0.3 * L;
+  const steps = [{ name: "Weighted base", why: `0.7 × impact ${I} + 0.3 × likelihood ${L}`, val: base.toFixed(1), state: "set" }];
+  let v = base;
+  const lift = L >= 9 && v < I;
+  if (lift) v = I;
+  steps.push({ name: "Near-certain lift", why: L >= 9 ? `Likelihood ${L} is at least 9, lifted to impact ${I}` : `Likelihood ${L} is below 9`, val: v.toFixed(1), state: lift ? "changed" : (L >= 9 ? "held" : "na") });
+  const cap = I <= 3 && v > 4;
+  if (cap) v = 4;
+  steps.push({ name: "Inconsequential cap", why: I <= 3 ? `Impact ${I} is at most 3, capped at 4` : `Impact ${I} is above 3`, val: v.toFixed(1), state: cap ? "changed" : (I <= 3 ? "held" : "na") });
+  let s = Math.floor(v + 0.5);
+  steps.push({ name: "Round", why: "Half rounds up", val: String(s), state: s !== v ? "changed" : "held" });
+  const floorApplies = sce && I >= 7;
+  const floor = floorApplies && s < 7;
+  if (floor) s = 7;
+  steps.push({ name: "SCE floor", why: floorApplies ? `Safety Critical Element with impact ${I}, at least 7` : (sce ? `Impact ${I} is below 7` : "Not a Safety Critical Element"), val: String(s), state: floor ? "changed" : (floorApplies ? "held" : "na") });
+  const o = OVERRIDES[fid];
+  if (o) {
+    const changed = s < 9;
+    if (changed) s = 9;
+    steps.push(o === "pl"
+      ? { name: "Override: protection layer impaired, no deviation", why: `Model flagged protection_layer_impaired with deviation_recorded unknown, treated as not recorded. ${EQ[FINDINGS.find((f) => f.id === fid).eq].type} is a protection layer type. At least 9`, val: String(s), state: changed ? "changed" : "held", fired: true }
+      : { name: "Override: evacuation below POB", why: "Model flagged evacuation_capacity_reduced and Lifeboat is an evacuation type. POB is not in the data, so the comparison is left to review. At least 9", val: String(s), state: changed ? "changed" : "held", fired: true });
+  }
+  return { L, I, score: s, band: bandOf(s), steps };
+}
+
+const NOTES = {
+  "F-1001": [["Other finding on this equipment","Other finding on K-3401 in this inspection period: F-1019 (2026-06-19): Lagging on the second stage discharge line has come loose and a section of cladding is flapping in the wind."]],
+  "F-1019": [["Other finding on this equipment","Other finding on K-3401 in this inspection period: F-1001 (2026-06-02): Overall vibration on the non-drive end bearing has climbed from 2.1 mm/s to 4.6 mm/s over the last six weeks."]],
+  "F-1008": [["Other finding on this equipment","Other finding on SC-1001 in this inspection period: F-1009 (2026-06-08): General coating breakdown across the underside of the cellar deck plating between grids C2 and C5."]],
+  "F-1009": [["Other finding on this equipment","Other finding on SC-1001 in this inspection period: F-1008 (2026-06-07): Crack indication found at the toe of the weld connecting a primary brace to the cellar deck node at grid B4."]],
+  "F-1011": [["Other finding on this equipment","Other finding on DEL-8300 in this inspection period: F-1020 (2026-06-21): Isolation valve on the deluge branch line to the north quadrant was found chained in the closed position."]],
+  "F-1020": [["Other finding on this equipment","Other finding on DEL-8300 in this inspection period: F-1011 (2026-06-10): Approximately 12 of the 60 nozzles in the north quadrant delivered either no flow or a badly distorted spray pattern."]],
+  "F-1003": [["Partner has a finding","Redundant partner FW-8101 also has an open finding in this inspection period: F-1017. Do not credit redundancy."]],
+  "F-1017": [["Partner has a finding","Redundant partner FW-8102 also has an open finding in this inspection period: F-1003. Do not credit redundancy."]],
+  "F-1013": [["Partner has a finding","Redundant partner INST-2151 also has an open finding in this inspection period: F-1018. Do not credit redundancy."]],
+  "F-1018": [["Partner has a finding","Redundant partner INST-2150 also has an open finding in this inspection period: F-1013. Do not credit redundancy."]],
+  "F-1012": [["Partner not in registry","Redundant partner LB-4101 is not in the registry; its condition cannot be verified."]],
+  "F-1005": [["Voted group","Voted 2oo3 group: with one member lost it runs 2oo2, all remaining members must agree; degradation, not defeat, but the next failure defeats it."]],
+};
+
+const fmtDate = (iso) => { const [y, m, d] = iso.split("-"); return `${+d} ${["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"][+m - 1]} ${y}`; };
+
+const STEP = +(Q.get("step") || 1);
+const STATE = Q.get("state") || (STEP === 3 ? "live" : "filled");
+
+const DOC = `# Integrity and Reliability Notes — Bravo Platform
+
+Handover notes from the outgoing Integrity Engineer. Unedited. This is the only written record of how findings are currently triaged.
+
+## The two questions
+
+**Likelihood** concerns the item itself: given what the inspection found, how likely is it to stop performing its function in the near term. A hairline coating blister on a thick-walled vessel is low likelihood even on a critical vessel. A bearing with a vibration trend that has not plateaued is high likelihood even on a spare pump.
+
+**Impact** concerns what happens if it does fail. This depends mainly on what the equipment does and what sits behind it, not on the wording of the finding.
+
+The common error is scoring by how severe the description sounds.
+
+## What moves likelihood
+
+Up: a trend that is still moving; a repeat of a failure that has already occurred this period; an active, unmitigated mechanism (corrosion under wet insulation is progressing now); detection by a method that only catches late-stage damage — a finding detected by ear or smell is further advanced than one detected by UT.
+
+Down: design margin; a measurement inside its acceptance criterion; an item that is out of service and not required to be in service.
+
+## What moves impact
+
+Up: absence of redundancy; Safety Critical Elements, which exist because a major accident scenario depends on them and are judged against that scenario rather than against repair cost; failures that degrade a protection layer rather than causing direct loss; delayed or hidden consequences — loss of corrosion inhibitor has no effect today and a substantial effect in eighteen months; escalation potential.
+
+Down: redundancy that is available and capable; items that can be bypassed without loss of function; atmospheric, non-hydrocarbon, low-energy services; consequences limited to housekeeping or appearance.
+
+## Two recurring errors
+
+**Voted arrangements.** One detector head out of a 2oo3 group is a degradation, not a defeat. The arrangement still functions, so impact is moderate rather than extreme. It is time-limited, because the group has lost its margin and the next failure defeats it.
+
+**Redundancy is a claim, not a fact.** Check whether the redundant partner is healthy before crediting it. If findings exist against both legs of a redundant pair in the same batch, the pair is not redundant. Assessing each finding in isolation misses this.
+
+## Urgency
+
+Not an average of likelihood and impact, and not the maximum, though the maximum is closer. A low-likelihood, high-impact finding on an SCE still requires attention this week. A near-certain failure of something inconsequential can wait for the next shutdown. Urgency expresses how soon a human must act.
+
+- 9–10: today
+- 7–8: this week
+- 5–6: this month
+- 3–4: next planned shutdown
+- 1–2: backlog
+
+Two conditions override the derived value. Anything that leaves a protection layer impaired without a recorded deviation is immediate, because the installation is out of compliance from the point the impairment is known. The same applies to anything that reduces evacuation capacity below the POB count.
+
+## Registry scores
+
+\`reliability_score\` is 10 = highly reliable, 1 = frequent failures. It runs in the opposite direction to likelihood. New starters routinely invert it. \`criticality_score\` runs in the expected direction, 10 = most critical.
+
+Neither is sufficient on its own. Criticality is a starting point for impact, reliability a starting point for likelihood; the finding text moves both. A reliable item with a crack in it is still cracked.
+
+## Output expectations
+
+Maintenance planning needs two lines: what is wrong, on what, and why it matters — readable without opening the inspection record, and not a restatement of the original finding text. Where the assessment is uncertain, that should be stated rather than resolved by picking a mid-range score.`;
+
+function md(src) {
+  const inline = (t) => esc(t).replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>").replace(/`(.+?)`/g, "<code>$1</code>");
+  let n = 0;
+  return src.split(/\n\n+/).map((b) => {
+    if (b.startsWith("# ")) return `<h1>${inline(b.slice(2))}</h1>`;
+    if (b.startsWith("## ")) return `<h2 id="s${++n}">${inline(b.slice(3))}</h2>`;
+    if (b.startsWith("- ")) return `<ul>${b.split("\n").map((l) => `<li>${inline(l.slice(2))}</li>`).join("")}</ul>`;
+    return `<p>${inline(b)}</p>`;
+  }).join("");
+}
+const SECTIONS = DOC.split("\n").filter((l) => l.startsWith("## ")).map((l) => l.slice(3));
+
+let rows = REGISTRY.map((r) => ({ ...r }));
+if (STATE === "stale") rows.push({ id: "SWB-6101", type: "Electrical Switchboard", service: "Main 6.6 kV switchboard A", crit: 9, rel: 8, sce: true, red: "Duplicated (SWB-6102)", comment: "Feeds the firewater pump jockey and the TR HVAC. Added after the electrical survey; SWB-6102 is the B side and is not in this registry yet.", added: true });
+const editing = STEP === 2 && STATE !== "empty" ? "FW-8102" : null;
+
+const counted = (key) => Object.entries(rows.reduce((m, r) => (m[r[key]] = (m[r[key]] || 0) + 1, m), {})).sort((a, b) => b[1] - a[1] || a[0].localeCompare(b[0]));
+
+/* ---- Step navigation */
+function steps() {
+  const s = (n, label, sub, state, href, why = "") => ({ n, label, sub, state, href, why });
+  if (STEP === 1 && STATE === "empty") return [
+    s(1, "Knowledge", "Add the document", "todo", "?step=1&state=empty"),
+    s(2, "Assets", "Needs knowledge", "locked", "", "Add the domain knowledge document first"),
+    s(3, "Rules", "Needs assets", "locked", "", "Needs the document and at least one asset"),
+    s(4, "Process", "Needs approved rules", "locked", "", "Approve a rules version first")];
+  if (STEP === 3 && STATE === "empty") return [
+    s(1, "Knowledge", "domain_knowledge.md", "done", "?step=1"), s(2, "Assets", "18 assets", "done", "?step=2"),
+    s(3, "Rules", "Not extracted yet", "todo", "?step=3&state=empty"),
+    s(4, "Process", "Needs approved rules", "locked", "", "Approve a rules version first")];
+  const stale = STATE === "stale";
+  return [
+    s(1, "Knowledge", "domain_knowledge.md", "done", "?step=1"),
+    s(2, "Assets", stale ? "19 assets" : "18 assets", "done", "?step=2"),
+    stale ? s(3, "Rules", "Out of date", "stale", "?step=3&state=stale") : s(3, "Rules", STEP === 3 && STATE === "live" ? "v2 approved, v4 extracting" : "v2 approved", "done", "?step=3&state=versions"),
+    s(4, "Process", stale ? "Blocked by rules" : "3 processes", stale ? "todo" : "done", "?step=4")];
+}
+
+function head(title, badge, meta, actions = "") {
+  return `<div class="phead"><div><h1>${title} ${badge}</h1><p class="phead__meta">${meta}</p></div><div class="phead__actions">${actions}</div></div>`;
+}
+function next(text, label, href, disabled = false) {
+  return `<div class="next"><p>${text}</p>${disabled ? `<button type="button" class="btn btn--primary" disabled>${label}</button>` : `<a class="btn btn--primary" href="${href}">${label}</a>`}</div>`;
+}
+
+/* ---- Step 1 */
+function step1() {
+  if (STATE === "empty") return head("Knowledge", status("queued", "Not added"), "One document per workspace: the handover notes or procedure that says how findings are triaged. The rules are extracted from it.") +
+    `<div class="ws-grid ws-grid--full"><div class="drop">
+      <h2>${ic("upload")}Drop the domain knowledge document here</h2>
+      <p>Markdown or plain text, one file. You can replace it later; approved rules keep working until you extract again.</p>
+      <div class="drop__acts"><button type="button" class="btn btn--primary">${ic("doc")}Choose file</button><button type="button" class="btn btn--secondary" onclick="pasteDialog()">${ic("paste")}Paste text</button></div>
+    </div></div>` + next("Assets unlock once the document is in.", "Continue to assets", "", true);
+  return head("Knowledge", status("done", "Added"), "One document per workspace. The rules are extracted from it and from the engineer comments in the assets, never from findings.",
+      `<button type="button" class="btn btn--secondary">${ic("upload")}Replace file</button><button type="button" class="btn btn--secondary" onclick="pasteDialog()">${ic("paste")}Paste text</button>`) +
+    `<div class="ws-grid">
+      <article class="panel">
+        <div class="docbar">${ic("doc")}<b>domain_knowledge.md</b><span>Reading view. The file is stored as written.</span></div>
+        <div class="docview">${md(DOC)}</div>
+      </article>
+      <aside class="aside">
+        <section><h2>Document</h2><dl class="facts"><dt>File</dt><dd>domain_knowledge.md</dd><dt>Added</dt><dd>15 Oct 2026, 15:52</dd><dt>Length</dt><dd>4,326 characters, 89 lines</dd><dt>Sections</dt><dd>7</dd></dl></section>
+        <section><h2>Sections</h2><nav class="outline" aria-label="Document sections">${SECTIONS.map((t, i) => `<a href="#s${i + 1}"><span>${i + 1}</span>${t}</a>`).join("")}</nav></section>
+        <section><h2>Used by</h2><p>Rules v2, approved 16 Oct 2026, and draft v3. Replacing the document leaves them as they are. Extract again to use the new text.</p></section>
+      </aside>
+    </div>` + next("Next, check the assets the rules will be written for.", "Continue to assets", "?step=2");
+}
+
+/* ---- Step 2 */
+function assetRow(r) {
+  if (r.id === editing) return `<tr class="is-editing">
+    <td class="c-id"><div class="stack"><label class="sr-only" for="e-id">Equipment</label><input id="e-id" class="cell-in" style="font-weight:700" value="${r.id}">
+      <input class="cell-in" aria-label="Type" value="${r.type}">
+      <label class="yn"><span>SCE</span><select class="cell-in" aria-label="Safety Critical Element"><option selected>Yes</option><option>No</option></select></label></div></td>
+    <td class="c-svc"><textarea class="cell-in" aria-label="Service" rows="2" style="min-height:4.5rem">${esc(r.service)}</textarea></td>
+    <td class="c-num"><input class="cell-in cell-in--num" aria-label="Criticality, 1 to 10" type="number" min="1" max="10" value="${r.crit}"></td>
+    <td class="c-num"><input class="cell-in cell-in--num" aria-label="Reliability, 1 to 10, 10 is reliable" type="number" min="1" max="10" value="${r.rel}"></td>
+    <td class="c-red"><input class="cell-in cell-in--code" aria-label="Redundancy" value="${esc(r.red)}"></td>
+    <td class="c-com"><label class="sr-only" for="e-com">Engineer comment</label><textarea id="e-com" class="cell-in" rows="5">${esc(r.comment)} Starting air receiver was replaced in September; the battery charger is still the original.</textarea>
+      <div class="edit-acts"><button type="button" class="btn btn--primary btn--sm">Save</button><button type="button" class="btn btn--quiet btn--sm">Cancel</button><small>Esc cancels, Ctrl Enter saves</small></div></td>
+    <td class="c-act"></td>
+  </tr>`;
+  return `<tr data-id="${r.id}" ${r.added ? 'class="is-new"' : ""}>
+    <td class="c-id"><span class="tag">${r.id}</span>${r.sce ? '<abbr class="sce" title="Safety Critical Element">SCE</abbr>' : ""}<span class="eqtype">${r.type}</span></td>
+    <td class="c-svc">${esc(r.service)}</td>
+    <td class="c-num">${r.crit}</td>
+    <td class="c-num">${r.rel}</td>
+    <td class="c-red"><span class="vstr">${esc(r.red)}</span></td>
+    <td class="c-com"><p title="Edit the comment" tabindex="0">${esc(r.comment)}</p></td>
+    <td class="c-act"><button type="button" class="iconbtn" aria-label="Edit ${r.id}">${ic("pencil")}</button><button type="button" class="iconbtn" aria-label="Delete ${r.id}" onclick="delRow('${r.id}')">${ic("trash")}</button></td>
+  </tr>`;
+}
+function step2() {
+  const types = counted("type"), reds = counted("red");
+  return head("Assets", status("done", `${rows.length} assets`), "The equipment registry, edited here. Each finding is checked against it, and the rules are written for exactly its equipment types and redundancy strings.",
+      `<button type="button" class="btn btn--secondary" onclick="importDialog()">${ic("sheet")}Import CSV</button><button type="button" class="btn btn--secondary">${ic("plus")}Add asset</button>`) +
+    `<div class="ws-grid ws-grid--assets">
+      <div class="tablescroll"><table class="grid-t" id="assets">
+        <caption class="sr-only">Assets</caption>
+        <thead><tr><th scope="col">Equipment<small>type, SCE</small></th><th scope="col">Service</th><th scope="col" class="c-num">Criticality<small>10 is most critical</small></th><th scope="col" class="c-num">Reliability<small>10 is reliable</small></th><th scope="col">Redundancy</th><th scope="col">Engineer comment</th><th scope="col"><span class="sr-only">Actions</span></th></tr></thead>
+        <tbody>${rows.map(assetRow).join("")}</tbody>
+      </table></div>
+      <aside class="aside">
+        <section><h2>Equipment types <small>${types.length}</small></h2><ul class="vocab">${types.map(([t, n]) => `<li><span>${t}</span><b>${n}</b></li>`).join("")}</ul></section>
+        <section><h2>Redundancy strings <small>${reds.length}</small></h2><ul class="vocab">${reds.map(([t, n]) => `<li><span class="vstr">${esc(t)}</span><b>${n}</b></li>`).join("")}</ul></section>
+        <section><h2>Checks</h2><div class="checks">
+          <div class="check is-pass">${ic("check")}<p><b>Rules v2 cover every type and string</b><span>13 of 13 types, 8 of 8 strings. A new type or string here makes v2 out of date.</span></p></div>
+          <div class="check is-info">${ic("info")}<p><b>1 partner has no row</b><span>LB-4101 is named by LB-4102. Batch notes will mark it unverified.</span></p></div>
+        </div></section>
+      </aside>
+    </div>` + next("Next, extract the rules from the document and these assets.", "Continue to rules", "?step=3&state=versions");
+}
+
+/* ---- Step 3 */
+const TYPES = [...new Set(REGISTRY.map((r) => r.type))];
+const REDS = [...new Set(REGISTRY.map((r) => r.red))];
+function extraction() {
+  const evs = [
+    { ts: 0, stage: "Intake", status: "done", title: "Read the document and the assets", body: `<div class="kv"><span><b>4,326</b> characters, <b>89</b> lines, <b>7</b> sections</span><span><b>18</b> assets</span><span><b>13</b> equipment types</span><span><b>8</b> redundancy strings</span></div>` },
+    { ts: 0.04, stage: "Schema", status: "done", title: "Schema closed over 13 equipment types and 8 redundancy strings", body: `<p class="ev__d">The model must fill 11 top-level keys. <b>by_equipment_type</b> takes exactly these 13 keys, and <b>redundancy_vocabulary</b> exactly these 8. Protection layer and evacuation types can only name the 13.</p><div class="keys">${TYPES.map((t) => `<span>${t}</span>`).join("")}</div><div class="keys">${REDS.map((t) => `<span class="vstr">${esc(t)}</span>`).join("")}</div>` },
+    { ts: 0.05, stage: "Model call", status: "start", title: "Attempt 1 of 4, streaming", body: `<div class="kv"><span><b>claude-opus-5-5</b></span><span>Elapsed <b data-live="0.05">38.2 s</b></span><span><b>7,940</b> in</span><span><b data-tok>3,212</b> out so far, max 32,000</span></div><div class="tail" aria-label="Latest output from the model">  Firewater Pump:
+  - text: Failure to start on demand is the scenario the whole fire protection philosophy is built to avoid.
+    source: "registry: FW-8101"
+  - text: The older pump has recurring battery and starting air problems; it is usually the first to fail a test start.</div>` },
+    { ts: null, stage: "Validate", status: "pending", title: "Not reached", body: "" },
+    { ts: null, stage: "Coverage", status: "pending", title: "Not reached", body: "" },
+    { ts: null, stage: "Draft", status: "pending", title: "Not reached", body: "" },
+  ];
+  return `<section class="panel xpanel" aria-labelledby="x-h">
+    <div class="xpanel__h"><h2 id="x-h">Extracting v4</h2>${status("running", "Running")}<span class="muted">Started 17 Oct 2026, 14:21:05 from domain_knowledge.md and 18 assets</span><button type="button" class="btn btn--quiet btn--sm">${ic("stop")}Cancel</button></div>
+    ${ladder(evs)}
+  </section>`;
+}
+function versions() {
+  const stale = STATE === "stale";
+  const rowsV = [
+    STATE === "live" ? `<tr><td class="c-v">v4</td><td>${status("running", "Extracting")}</td><td>17 Oct 2026, 14:21<span class="sub">From the document and 18 assets</span></td><td class="muted">After the coverage check</td><td class="muted">None</td><td></td></tr>` : "",
+    `<tr><td class="c-v">v3</td><td>${status("draft", "Draft")}</td><td>17 Oct 2026, 09:12<span class="sub">Edited from v2: impact scope line</span></td><td><span class="cov ${stale ? "is-fail" : ""}">${ic(stale ? "cross" : "check")}${stale ? "13 of 14 types, 8 of 9 strings" : "13 of 13 types, 8 of 8 strings"}</span></td><td class="muted">None</td><td><a href="mockup-rules.html">Review and approve</a></td></tr>`,
+    `<tr><td class="c-v is-cur">v2</td><td>${status("ok", "Approved")}</td><td>16 Oct 2026, 11:40<span class="sub">Extracted, approved the same day</span></td><td><span class="cov ${stale ? "is-fail" : ""}">${ic(stale ? "cross" : "check")}${stale ? "13 of 14 types, 8 of 9 strings" : "13 of 13 types, 8 of 8 strings"}</span></td><td>Processes 1 to 3</td><td><a href="mockup-rules.html">Open</a></td></tr>`,
+    `<tr><td class="c-v">v1</td><td>${status("fail", "Failed")}</td><td>15 Oct 2026, 16:05<span class="sub">Coverage gap after 4 attempts: Lifeboat had no section</span></td><td class="muted">Not saved</td><td class="muted">None</td><td><a href="#">See attempts</a></td></tr>`,
+  ];
+  return `<section><div class="tbl-head"><h2 class="sec-h">Versions <small>${STATE === "live" ? 4 : 3}</small></h2></div>
+    <div class="tablescroll"><table class="grid-t ver-t"><caption class="sr-only">Rules versions</caption>
+    <thead><tr><th scope="col">Version</th><th scope="col">Status</th><th scope="col">Created</th><th scope="col">Covers the assets</th><th scope="col">Used by</th><th scope="col"><span class="sr-only">Open</span></th></tr></thead>
+    <tbody>${rowsV.join("")}</tbody></table></div></section>`;
+}
+function step3() {
+  if (STATE === "empty") return head("Rules", status("queued", "Not extracted"), "One model call turns the document and the engineer comments into a rules file you can read, edit and approve. Findings never feed it.") +
+    `<div class="ws-grid"><section class="panel ready-x">
+      <h2 class="sec-h">Extract the first version</h2>
+      <div class="checks">
+        <div class="check is-pass">${ic("check")}<p><b>Knowledge is in</b><span>domain_knowledge.md, 7 sections</span></p></div>
+        <div class="check is-pass">${ic("check")}<p><b>Assets are in</b><span>18 assets, 13 equipment types, 8 redundancy strings</span></p></div>
+      </div>
+      <p>claude-opus-5-5 writes one section per equipment type and classifies every redundancy string. It takes about a minute, and you can watch each stage.</p>
+      <button type="button" class="btn btn--primary">${ic("play")}Extract rules</button>
+    </section><aside class="aside"><section><h2>Done when</h2><p>A version is approved and covers every equipment type and redundancy string in the assets.</p></section></aside></div>` +
+    next("Processes unlock once a version is approved.", "Continue to process", "", true);
+  const stale = STATE === "stale";
+  const badge = stale ? status("fail", "Out of date") : STATE === "live" ? status("running", "Extracting v4") : status("ok", "v2 approved");
+  const staleBox = stale ? `<section class="panel stale" aria-labelledby="st-h">
+      <h2 id="st-h">${ic("cross")}Approved rules v2 do not cover the current assets</h2>
+      <ul class="gaps">
+        <li>${ic("cross")}<p><b>New equipment type: Electrical Switchboard</b><br><span>On SWB-6101, added in Assets on 17 Oct 2026, 14:02. v2 has no section for it.</span></p></li>
+        <li>${ic("cross")}<p><b>New redundancy string: <span class="vstr">Duplicated (SWB-6102)</span></b><br><span>On SWB-6101. v2 does not classify it, so it would be neither credited nor verified.</span></p></li>
+      </ul>
+      <p>A finding on SWB-6101 would have no rules to be scored against, so new processes are blocked until a version covers it. Past processes and their tickets are unaffected.</p>
+      <div class="stale__acts"><button type="button" class="btn btn--primary">${ic("refresh")}Extract v4</button><a class="btn btn--secondary" href="mockup-rules.html?tab=yaml">Add the section to v3 by hand</a></div>
+    </section>` : "";
+  const aside = `<aside class="aside">
+    <section><h2>Done when</h2><div class="checks">
+      <div class="check is-pass">${ic("check")}<p><b>A version is approved</b><span>v2, approved 16 Oct 2026, 11:40</span></p></div>
+      ${stale ? `<div class="check is-fail">${ic("cross")}<p><b>It covers the current assets</b><span>13 of 14 types, 8 of 9 redundancy strings</span></p></div>`
+        : `<div class="check is-pass">${ic("check")}<p><b>It covers the current assets</b><span>13 of 13 types, 8 of 8 redundancy strings</span></p></div>`}
+    </div></section>
+    <section><h2>Rules v2</h2><p>Read every rule with its source, edit the YAML, and approve new versions on the rules page.</p><p style="margin-top:var(--sp-3)"><a href="mockup-rules.html">Open rules v2</a></p></section>
+  </aside>`;
+  return head("Rules", badge, "One model call turns the document and the engineer comments into a rules file. Approve a version to use it in processes.",
+      STATE === "live" || stale ? "" : `<button type="button" class="btn btn--secondary">${ic("play")}Extract rules</button>`) +
+    `<div class="ws-grid"><div style="display:grid;gap:var(--sp-7)">${staleBox}${STATE === "live" ? extraction() : ""}${versions()}</div>${aside}</div>` +
+    (stale ? next("Processes are blocked until a version covers the assets.", "Continue to process", "?step=4") : next("Next, submit findings as a process.", "Continue to process", "?step=4"));
+}
+
+/* ---- Step 4 */
+function findingRows() {
+  const list = FINDINGS.map((f) => ({ ...f }));
+  if (STATE === "invalid") {
+    list.find((f) => f.id === "F-1013").fileType = "Pressure Transmitter";
+    list.push({ id: "F-1022", date: "2026-06-23", eq: "XV-9001", type: "Shutdown Valve", itype: "Function Test", method: "Partial Stroke Test", by: "T. Nakamura", role: "Instrument Technician", desc: "Valve did not complete the partial stroke test. Travelled to about 60 percent and stalled. Solenoid and supply pressure checked and normal." });
+  }
+  /* Rows with a problem come first, blocking before information; the rest keep file order. */
+  const rank = (f) => f.id === "F-1022" ? 0 : f.fileType ? 1 : 2;
+  return list.map((f, i) => [f, i]).sort((a, b) => rank(a[0]) - rank(b[0]) || a[1] - b[1]).map(([f]) => f);
+}
+function step4() {
+  const list = findingRows();
+  const invalid = STATE === "invalid";
+  const processes = `<section><div class="tbl-head"><h2 class="sec-h">Processes <small>3</small></h2></div>
+    <div class="tablescroll"><table class="grid-t ptable"><caption class="sr-only">Past processes</caption>
+    <thead><tr><th scope="col">Process</th><th scope="col">Status</th><th scope="col">Rules</th><th scope="col" class="c-n">Findings</th><th scope="col" class="c-n">Drafted</th><th scope="col" class="c-n">Failed</th><th scope="col">Started</th><th scope="col" class="c-n">Took</th></tr></thead>
+    <tbody>
+      <tr><td><a class="pl" href="mockup-process.html?state=done">Process 3</a></td><td>${status("done", "Done")}</td><td>v2</td><td class="c-n">21</td><td class="c-n">21</td><td class="c-n muted">0</td><td>16 Oct 2026, 13:24</td><td class="c-n">25 s</td></tr>
+      <tr><td><a class="pl" href="#">Process 2</a></td><td>${status("fail", "Failed")}<span class="err-line">Stopped: the API key was rejected (401)</span></td><td>v2</td><td class="c-n">21</td><td class="c-n">4</td><td class="c-n muted">0</td><td>16 Oct 2026, 12:58</td><td class="c-n">6 s</td></tr>
+      <tr><td><a class="pl" href="#">Process 1</a></td><td>${status("done", "Done")}</td><td>v2</td><td class="c-n">21</td><td class="c-n">21</td><td class="c-n muted">0</td><td>16 Oct 2026, 11:52</td><td class="c-n">31 s</td></tr>
+    </tbody></table></div></section>`;
+  if (STATE === "empty") return head("Process", status("queued", "Ready"), "Findings are not stored on the workspace. Each file you submit becomes a process that drafts one ticket per finding.") +
+    `<div class="ws-grid ws-grid--full" style="gap:var(--sp-7)"><div class="drop">
+      <h2>${ic("upload")}Drop an inspection findings CSV</h2>
+      <p>Columns are fixed: <code class="vstr" style="white-space:normal">finding_id, reported_date, equipment_id, equipment_type, inspection_type, inspection_method, finding_description, reported_by, reporter_role</code>. Rows are checked against the assets before anything is sent to the model.</p>
+      <div class="drop__acts"><button type="button" class="btn btn--primary">${ic("sheet")}Choose file</button></div>
+    </div>${processes}</div>`;
+  const msg = (f) => {
+    if (f.id === "F-1022") return `<span class="rowmsg rowmsg--danger">${ic("cross")}<span>XV-9001 is not in the assets. Add it in Assets or correct the file.</span></span>`;
+    if (f.fileType) return `<span class="rowmsg rowmsg--info">${ic("info")}<span>File says Pressure Transmitter, assets say Level Transmitter. The asset type is used.</span></span>`;
+    return "";
+  };
+  const t = `<div class="tablescroll scroll" style="border:0;border-radius:0"><table class="grid-t fd-t"><caption class="sr-only">Findings in the file</caption>
+    <thead><tr><th scope="col">Finding</th><th scope="col">Reported</th><th scope="col">Equipment</th><th scope="col">Type</th><th scope="col">Inspection</th><th scope="col">Description</th><th scope="col">Reported by</th><th scope="col">Check</th></tr></thead>
+    <tbody>${list.map((f) => `<tr class="${f.id === "F-1022" ? "is-blocking" : ""}"><td class="c-id"><b>${f.id}</b></td><td class="c-type">${fmtDate(f.date)}</td><td class="c-id"><span class="tag">${f.eq}</span></td><td class="c-type">${f.fileType || f.type}</td><td class="c-type">${f.itype}<span class="sub muted" style="display:block;font-size:var(--fs-xs)">${f.method}</span></td><td class="c-desc"><p>${esc(f.desc)}</p></td><td class="c-type">${f.by}<span class="muted" style="display:block;font-size:var(--fs-xs)">${f.role}</span></td><td class="c-chk">${msg(f)}</td></tr>`).join("")}</tbody></table></div>`;
+  const summary = invalid
+    ? `<div class="check is-fail">${ic("cross")}<p><b>1 row references unknown equipment</b><span>It blocks the submit.</span></p></div><div class="check is-info">${ic("info")}<p><b>1 type differs from the assets</b><span>Information only; the asset type is used.</span></p></div><div class="check is-pass">${ic("check")}<p><b>20 rows match the assets</b></p></div><button type="button" class="fchip" aria-pressed="false">Show rows with a problem<span class="fchip__n">2</span></button>`
+    : `<div class="check is-pass">${ic("check")}<p><b>21 of 21 rows match the assets</b><span>No unknown equipment, no type differences.</span></p></div>`;
+  return head("Process", status("done", "3 processes"), "Findings are not stored on the workspace. Each file you submit becomes a process that drafts one ticket per finding.") +
+    `<div class="ws-grid ws-grid--full" style="gap:var(--sp-7)">
+      <section class="panel" aria-labelledby="new-h">
+        <h2 class="sr-only" id="new-h">New process</h2>
+        <div class="filebar"><span class="filebar__n">${ic("sheet")}inspection_findings.csv</span><span class="filebar__m">${list.length} rows, ${invalid ? "8.1" : "7.8"} KB</span><button type="button" class="btn btn--secondary btn--sm">Replace file</button><button type="button" class="btn btn--quiet btn--sm">Remove</button></div>
+        <div class="vsum" role="status">${summary}</div>
+        ${t}
+        <div class="submitbar">
+          <div class="field"><label for="rv">Rules version</label><select id="rv" class="selectbox"><option selected>v2, approved 16 Oct 2026 (latest approved)</option><option disabled>v3, draft: approve it to use it</option><option disabled>v1, failed</option></select></div>
+          <p class="submitbar__why ${invalid ? "is-danger" : ""}">${invalid ? "Fix F-1022 to submit. XV-9001 is not in the assets." : "21 findings, 4 workers, claude-sonnet-5-5. About 25 s."}</p>
+          ${invalid ? `<button type="button" class="btn btn--primary" disabled>${ic("play")}Submit process</button>` : `<a class="btn btn--primary" href="mockup-process.html">${ic("play")}Submit process</a>`}
+        </div>
+      </section>
+      ${processes}
+    </div>`;
+}
+
+/* ---- Dialogs, toast */
+function importDialog() {
+  const el = document.createElement("div");
+  el.innerHTML = `<div class="scrim" onclick="if(event.target===this)this.parentNode.remove()"><div class="dialog" role="alertdialog" aria-modal="true" aria-labelledby="dlg-t" aria-describedby="dlg-d">
+    <h2 id="dlg-t">Replace all 18 assets?</h2>
+    <div class="dialog__file"><b>equipment_registry.csv</b><span>18 rows, 13 equipment types, 8 redundancy strings. Columns match.</span></div>
+    <p id="dlg-d">Every asset is replaced by the rows in the file, including edited engineer comments. Approved rules stay approved, and go out of date if the file adds an equipment type or a redundancy string.</p>
+    <div class="dialog__acts"><button type="button" class="btn btn--quiet" onclick="this.closest('.scrim').parentNode.remove()">Cancel</button><button type="button" class="btn btn--primary">Replace 18 assets</button></div>
+  </div></div>`;
+  document.body.appendChild(el);
+  el.querySelector(".btn--primary").focus();
+}
+function pasteDialog() {
+  const el = document.createElement("div");
+  el.innerHTML = `<div class="scrim" onclick="if(event.target===this)this.parentNode.remove()"><div class="dialog" role="dialog" aria-modal="true" aria-labelledby="dlg-t" style="width:min(40rem,100%)">
+    <h2 id="dlg-t">Paste the domain knowledge</h2>
+    <div class="field"><label for="dlg-ta">Markdown or plain text</label><textarea id="dlg-ta" class="textarea" rows="10" placeholder="# Integrity and reliability notes"></textarea></div>
+    <p>It replaces domain_knowledge.md. Approved rules keep working until you extract again.</p>
+    <div class="dialog__acts"><button type="button" class="btn btn--quiet" onclick="this.closest('.scrim').parentNode.remove()">Cancel</button><button type="button" class="btn btn--primary">Save document</button></div>
+  </div></div>`;
+  document.body.appendChild(el);
+  el.querySelector("textarea").focus();
+}
+let lastDeleted = null;
+function delRow(id) {
+  const i = rows.findIndex((r) => r.id === id);
+  lastDeleted = [i, rows[i]];
+  rows.splice(i, 1);
+  render();
+  document.querySelector(".toast")?.remove();
+  const t = document.createElement("div");
+  t.className = "toast is-new"; t.setAttribute("role", "status");
+  t.innerHTML = `<span>Deleted ${id}.</span><button type="button" class="btn" onclick="undo()">Undo</button>`;
+  document.body.appendChild(t);
+  setTimeout(() => t.remove(), 8000);
+}
+function undo() { rows.splice(lastDeleted[0], 0, lastDeleted[1]); document.querySelector(".toast")?.remove(); render(); }
+
+function render() {
+  const body = { 1: step1, 2: step2, 3: step3, 4: step4 }[STEP]();
+  document.getElementById("app").innerHTML = `${topbar(steps(), STEP)}<main class="ws-main">${body}</main>`;
+}
+render();
+if (Q.get("dialog") === "import") importDialog();
+if (Q.get("dialog") === "paste") pasteDialog();
+if (Q.get("toast")) delRow("INST-2151");
+
+if (STEP === 3 && STATE === "live" && !STILL) {
+  const t0 = performance.now();
+  let tok = 3212;
+  setInterval(() => {
+    const now = 38.2 + (performance.now() - t0) / 1000;
+    document.querySelectorAll("[data-live]").forEach((el) => { el.textContent = now.toFixed(1) + " s"; });
+    tok += Math.round(8 + Math.random() * 14);
+    const tk = document.querySelector("[data-tok]"); if (tk) tk.textContent = k(tok);
+  }, 100);
+}
+function k(n) { return n.toLocaleString("en-GB"); }
+</script>
+</body>
+</html>

@@ -1,0 +1,589 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Sign in, Triage</title>
+<style>
+/* Triage design tokens.
+ *
+ * Fonts: Atkinson Hyperlegible Next for everything, Atkinson Hyperlegible Mono
+ * only inside the YAML editor. In React prefer the <link> in index.html over
+ * this @import so the font request starts before the CSS parses:
+ *
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap" rel="stylesheet">
+ */
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* Base palette, light. Neutrals derive from RAL 7035 (enclosure grey) and
+     RAL 7016 (anthracite); interaction is RAL 5005 (signal blue). */
+  --plane: #e9ece9;          /* page background, enclosure grey */
+  --surface: #f8f9f7;        /* panels, table body */
+  --surface-sunk: #eff1ee;   /* table header, code, badges */
+  --ink: #22292b;            /* anthracite, primary text */
+  --ink-2: #4b5558;          /* secondary text */
+  --ink-3: #5d676a;          /* muted text; AA on plane, surface and sunk */
+  --rule: #d5dad7;           /* hairline dividers, decorative only */
+  --rule-strong: #7f8987;    /* input and control boundaries, 3:1 */
+  --signal: #1f4f8f;         /* links, primary buttons, focus, selection */
+  --signal-ink: #ffffff;     /* text on --signal */
+  --signal-wash: #e1e9f4;    /* selected row */
+
+  /* Semantic. Never decorative; always paired with an icon and a word. */
+  --ok: #1d6e45;             /* approved, validation passed */
+  --ok-wash: #e2efe7;
+  --danger: #a3164f;         /* rejected, validation failed; crimson, kept clear of the urgency ramp */
+  --danger-wash: #f6e3ea;
+
+  /* Urgency bands. The only warm colour in the product. One hue (safety
+     orange), ordered by distance from the surface: today sits furthest from
+     the page in both themes, so the same band is rust here and peach in dark.
+     Validated with the dataviz ordinal checks against --surface. */
+  --band-today: #9d2800;
+  --band-today-ink: #ffffff;
+  --band-week: #be4500;
+  --band-week-ink: #ffffff;
+  --band-month: #d36c1b;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #d58d52;
+  --band-shutdown-ink: #1a2023;
+  --band-backlog: #d3ab85;
+  --band-backlog-ink: #1a2023;
+
+  /* Type */
+  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-code: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+
+  --fs-xs: 0.75rem;   --lh-xs: 1rem;        /* 12/16 badges, table meta */
+  --fs-sm: 0.8125rem; --lh-sm: 1.125rem;    /* 13/18 secondary, table cells */
+  --fs-base: 0.9375rem; --lh-base: 1.4rem;  /* 15/22.4 body, rationale */
+  --fs-md: 1.0625rem; --lh-md: 1.5rem;      /* 17/24 panel headings, band strips */
+  --fs-lg: 1.25rem;   --lh-lg: 1.625rem;    /* 20/26 screen titles, tag in detail */
+  --fs-xl: 1.5rem;    --lh-xl: 1.875rem;    /* 24/30 score numerals */
+  --fs-2xl: 2rem;     --lh-2xl: 2.25rem;    /* 32/36 rare */
+  --fs-num: 3rem;     --lh-num: 1;          /* 48 urgency numeral in detail */
+
+  --fw-regular: 400;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --fw-heavy: 780;   /* numerals only */
+
+  --measure: 68ch;   /* prose line length */
+
+  /* Space, 4px base */
+  --sp-1: 0.125rem;  /* 2 */
+  --sp-2: 0.25rem;   /* 4 */
+  --sp-3: 0.5rem;    /* 8 */
+  --sp-4: 0.75rem;   /* 12 */
+  --sp-5: 1rem;      /* 16 */
+  --sp-6: 1.5rem;    /* 24 */
+  --sp-7: 2rem;      /* 32 */
+  --sp-8: 3rem;      /* 48 */
+  --sp-9: 4rem;      /* 64 */
+
+  /* Radius by role, not one radius everywhere */
+  --r-strip: 0;      /* table rows, band strips */
+  --r-chip: 3px;     /* chips, badges, score cells */
+  --r-control: 6px;  /* buttons, inputs */
+  --r-panel: 10px;   /* panels, sheets, dialogs */
+
+  --shadow-overlay: 0 8px 24px rgb(34 41 43 / 0.18), 0 1px 3px rgb(34 41 43 / 0.12);
+
+  --hit: 2.75rem;    /* 44px minimum touch target */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--signal);
+
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;            /* layout moves on the lane grid, progress bar */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #1a2023;
+    --surface: #1e2427;
+    --surface-sunk: #262e31;
+    --ink: #e6e9e6;
+    --ink-2: #b4bdbc;
+    --ink-3: #929c9d;
+    --rule: #333c3f;
+    --rule-strong: #6f797c;
+    --signal: #8fb6ee;
+    --signal-ink: #10243f;
+    --signal-wash: #223246;
+    --ok: #72c99d;
+    --ok-wash: #1d3329;
+    --danger: #f28fb4;
+    --danger-wash: #3d2330;
+    --band-today: #ffac5a;
+    --band-today-ink: #1a2023;
+    --band-week: #f68e40;
+    --band-week-ink: #1a2023;
+    --band-month: #de7133;
+    --band-month-ink: #1a2023;
+    --band-shutdown: #af5b39;
+    --band-shutdown-ink: #ffffff;
+    --band-backlog: #824c39;
+    --band-backlog-ink: #ffffff;
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #1a2023;
+  --surface: #1e2427;
+  --surface-sunk: #262e31;
+  --ink: #e6e9e6;
+  --ink-2: #b4bdbc;
+  --ink-3: #929c9d;
+  --rule: #333c3f;
+  --rule-strong: #6f797c;
+  --signal: #8fb6ee;
+  --signal-ink: #10243f;
+  --signal-wash: #223246;
+  --ok: #72c99d;
+  --ok-wash: #1d3329;
+  --danger: #f28fb4;
+  --danger-wash: #3d2330;
+  --band-today: #ffac5a;
+  --band-today-ink: #1a2023;
+  --band-week: #f68e40;
+  --band-week-ink: #1a2023;
+  --band-month: #de7133;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #af5b39;
+  --band-shutdown-ink: #ffffff;
+  --band-backlog: #824c39;
+  --band-backlog-ink: #ffffff;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
+
+/* Shared components */
+*, *::before, *::after { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body {
+  margin: 0;
+  background: var(--plane);
+  color: var(--ink);
+  font-family: var(--font-ui);
+  font-size: var(--fs-base);
+  line-height: var(--lh-base);
+  font-weight: var(--fw-regular);
+  font-variant-numeric: tabular-nums;
+}
+h1, h2, h3, p, ol, ul, dl, dd { margin: 0; }
+ol, ul { padding: 0; list-style: none; }
+button, input, select, textarea { font: inherit; color: inherit; }
+a { color: var(--signal); text-underline-offset: 0.18em; }
+abbr[title] { text-decoration: none; }
+.i { width: 1em; height: 1em; flex: none; }
+.sr-only { position: absolute; width: 1px; height: 1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.skip { position: absolute; left: var(--sp-3); top: -3rem; background: var(--signal); color: var(--signal-ink); padding: var(--sp-3) var(--sp-4); border-radius: var(--r-control); z-index: 10; }
+.skip:focus { top: var(--sp-3); }
+
+/* Top bar with the readiness strip */
+.topbar {
+  display: flex; align-items: center; gap: var(--sp-6);
+  padding: 0 var(--sp-6);
+  min-height: 3.5rem;
+  background: var(--surface);
+  border-bottom: 1px solid var(--rule);
+}
+.wordmark { font-weight: var(--fw-heavy); font-size: var(--fs-md); letter-spacing: -0.01em; }
+.ws {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: var(--hit); padding: 0 var(--sp-3);
+  background: none; border: 0; border-radius: var(--r-control);
+  font-weight: var(--fw-medium); cursor: pointer;
+}
+.ws:hover { background: var(--surface-sunk); }
+.ready { display: flex; align-items: center; gap: var(--sp-5); margin-left: auto; }
+.ready__step { display: flex; align-items: center; gap: var(--sp-3); color: var(--ink-3); }
+.ready__step + .ready__step::before {
+  content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); margin-right: var(--sp-2);
+}
+.ready__n {
+  display: grid; place-items: center;
+  width: 1.5rem; height: 1.5rem; border-radius: 50%;
+  border: 1.5px solid currentColor;
+  font-size: var(--fs-xs); font-weight: var(--fw-bold);
+}
+.ready__step.is-done { color: var(--ink); }
+.ready__step.is-done .ready__n { background: var(--ink); border-color: var(--ink); color: var(--surface); }
+.ready__step.is-current .ready__t { font-weight: var(--fw-bold); }
+.ready__t { display: flex; flex-direction: column; font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ready__s { font-weight: var(--fw-regular); color: var(--ink-3); font-size: var(--fs-xs); line-height: var(--lh-xs); }
+.iconbtn {
+  display: inline-grid; place-items: center;
+  width: var(--hit); height: var(--hit);
+  background: none; border: 0; border-radius: var(--r-control); color: var(--ink-2); cursor: pointer;
+}
+.iconbtn:hover { background: var(--surface-sunk); color: var(--ink); }
+
+/* Buttons. Never warm: orange belongs to urgency. */
+.btn {
+  display: inline-flex; align-items: center; justify-content: center; gap: var(--sp-3);
+  min-height: var(--hit); padding: 0 var(--sp-5);
+  border-radius: var(--r-control); border: 1px solid transparent;
+  font-weight: var(--fw-bold); font-size: var(--fs-base); cursor: pointer;
+  transition: background-color var(--dur-1) var(--ease), border-color var(--dur-1) var(--ease);
+}
+.btn--primary { background: var(--signal); color: var(--signal-ink); }
+.btn--primary:hover { background: color-mix(in oklab, var(--signal) 88%, var(--ink)); }
+.btn--secondary { background: var(--surface); border-color: var(--rule-strong); color: var(--ink); }
+.btn--secondary:hover { background: var(--surface-sunk); }
+.btn--quiet { background: transparent; border-color: var(--rule-strong); color: var(--ink); }
+.btn--quiet:hover { background: var(--surface-sunk); }
+
+/* SCE: the one badge that is always filled, because it is the primary review trigger */
+.sce {
+  display: inline-flex; align-items: center;
+  padding: 0 var(--sp-2); height: 1.125rem;
+  border-radius: var(--r-chip);
+  background: var(--ink); color: var(--surface);
+  font-size: var(--fs-xs); font-weight: var(--fw-bold); letter-spacing: 0.02em;
+  line-height: 1;
+}
+
+/* Equipment tags and ids: same family, heavier, tabular */
+.tag { font-weight: var(--fw-bold); letter-spacing: 0.005em; }
+.tid { font-size: var(--fs-sm); color: var(--ink-2); text-decoration: none; }
+.tid:hover { color: var(--signal); text-decoration: underline; }
+
+/* Filter chips */
+.fchip {
+  display: inline-flex; align-items: center; gap: var(--sp-3);
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm); font-weight: var(--fw-medium); cursor: pointer;
+}
+.fchip:hover { background: var(--surface-sunk); }
+.fchip[aria-pressed="true"] { border-color: var(--ink); box-shadow: inset 0 0 0 1px var(--ink); background: var(--surface-sunk); }
+.fchip__n { color: var(--ink-3); font-weight: var(--fw-regular); }
+.swatch { width: 0.75rem; height: 0.75rem; border-radius: 2px; }
+.swatch--today, .ucell--today, .dist__seg--today, .nl__seg--today { background: var(--band-today); color: var(--band-today-ink); }
+.swatch--week, .ucell--week, .dist__seg--week, .nl__seg--week { background: var(--band-week); color: var(--band-week-ink); }
+.swatch--month, .ucell--month, .dist__seg--month, .nl__seg--month { background: var(--band-month); color: var(--band-month-ink); }
+.swatch--shutdown, .ucell--shutdown, .dist__seg--shutdown, .nl__seg--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.swatch--backlog, .ucell--backlog, .dist__seg--backlog, .nl__seg--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+.select select, .search input {
+  min-height: 2.25rem; padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-sm);
+}
+.search { position: relative; display: inline-flex; align-items: center; }
+.search .i { position: absolute; left: var(--sp-3); color: var(--ink-3); }
+.search input { padding-left: 2rem; width: 13rem; }
+.search input::placeholder, textarea::placeholder { color: var(--ink-3); }
+
+.prose { max-width: var(--measure); color: var(--ink); }
+kbd {
+  display: inline-grid; place-items: center; min-width: 1.25rem; height: 1.25rem; padding: 0 var(--sp-1);
+  border: 1px solid var(--rule-strong); border-bottom-width: 2px; border-radius: var(--r-chip);
+  font: inherit; font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2);
+}
+
+
+/* ---- Components added for the workspace steps, the process view and login ---- */
+
+/* The readiness strip becomes the step navigation. Each step is a link; a
+   locked step is a disabled button with its reason underneath. */
+.ready__step { text-decoration: none; }
+a.ready__step, button.ready__step {
+  min-height: var(--hit); padding: 0 var(--sp-2); margin: 0 calc(-1 * var(--sp-2));
+  border: 0; background: none; border-radius: var(--r-control); cursor: pointer;
+}
+a.ready__step:hover { background: var(--surface-sunk); }
+.ready li { display: flex; align-items: center; gap: var(--sp-5); }
+.ready li + li::before { content: ""; width: var(--sp-6); height: 1px; background: var(--rule-strong); }
+.ready__step.is-locked { cursor: not-allowed; color: var(--ink-3); }
+.ready__step.is-locked .ready__n { border-style: dashed; }
+.ready__step.is-current .ready__n { box-shadow: 0 0 0 2px var(--surface), 0 0 0 3.5px var(--ink); }
+.ready__step.is-stale .ready__n { background: var(--surface); color: var(--danger); border-color: var(--danger); }
+.ready__s .i { width: 0.75rem; height: 0.75rem; vertical-align: -0.1em; margin-right: 2px; }
+.ready__s.is-danger { color: var(--danger); font-weight: var(--fw-medium); }
+
+/* Status badge: the ticketing-system cue. Outline only, always icon plus word.
+   Ink means the machine finished, ok means a human approved or a check passed,
+   danger means it failed. No fills, so nothing competes with a band. */
+.status {
+  display: inline-flex; align-items: center; gap: var(--sp-2);
+  min-height: 1.5rem; padding: 0 var(--sp-3) 0 var(--sp-2);
+  border: 1px solid var(--rule-strong); border-radius: var(--r-chip);
+  font-size: var(--fs-xs); line-height: var(--lh-xs); font-weight: var(--fw-bold);
+  color: var(--ink); background: var(--surface); white-space: nowrap;
+}
+.status .i { width: 0.875rem; height: 0.875rem; }
+.status--muted { color: var(--ink-3); border-style: dashed; font-weight: var(--fw-medium); }
+.status--ok { color: var(--ok); }
+.status--danger { color: var(--danger); }
+.status--lg { min-height: 1.75rem; font-size: var(--fs-sm); padding: 0 var(--sp-4) 0 var(--sp-3); }
+
+/* Running marker. The arc turns while work is in flight; under reduced motion
+   it stops and the word beside it still says Running. */
+.spin { animation: spin 0.9s linear infinite; transform-origin: 50% 50%; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@media (prefers-reduced-motion: reduce) { .spin { animation: none; } }
+
+/* Page head shared by the step and process screens */
+.phead { padding: var(--sp-6) var(--sp-7) var(--sp-5); display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: var(--sp-4) var(--sp-6); }
+.phead h1 { font-size: var(--fs-lg); line-height: var(--lh-lg); font-weight: var(--fw-bold); display: flex; align-items: center; gap: var(--sp-4); }
+.phead__meta { color: var(--ink-2); font-size: var(--fs-sm); line-height: var(--lh-sm); margin-top: var(--sp-2); max-width: 72ch; }
+.phead__actions { display: flex; gap: var(--sp-3); align-items: center; flex-wrap: wrap; }
+.crumb { display: inline-flex; align-items: center; gap: var(--sp-2); font-size: var(--fs-sm); font-weight: var(--fw-medium); color: var(--ink-2); text-decoration: none; margin-bottom: var(--sp-2); }
+.crumb:hover { color: var(--signal); text-decoration: underline; }
+
+/* Event ladder: one row per event, a rail through the icons. Built straight from
+   {ts, stage, status, title, detail}. */
+.ladder { display: grid; position: relative; }
+.ev { display: grid; grid-template-columns: 4.25rem 1.5rem minmax(0, 1fr); column-gap: var(--sp-3); position: relative; padding-bottom: var(--sp-4); font-size: var(--fs-sm); line-height: var(--lh-sm); }
+.ev::before { content: ""; position: absolute; left: calc(4.25rem + var(--sp-3) + 0.75rem - 0.5px); top: 1.375rem; bottom: 0; width: 1px; background: var(--rule-strong); }
+.ev:last-child::before { display: none; }
+.ev__t { text-align: right; color: var(--ink-3); font-size: var(--fs-xs); padding-top: 2px; }
+.ev__i { display: grid; place-items: center; width: 1.5rem; height: 1.25rem; position: relative; z-index: 1; }
+.ev__i .i { width: 1rem; height: 1rem; background: var(--surface); border-radius: 50%; }
+.ev__b { min-width: 0; }
+.ev__title { font-weight: var(--fw-bold); color: var(--ink); }
+.ev__stage { font-weight: var(--fw-regular); color: var(--ink-3); margin-right: var(--sp-2); }
+.ev__d { color: var(--ink-2); margin-top: var(--sp-1); max-width: var(--measure); }
+.ev--done .ev__i { color: var(--ink); }
+.ev--pass .ev__i { color: var(--ok); }
+.ev--fail .ev__i { color: var(--danger); }
+.ev--fail .ev__title { color: var(--danger); }
+.ev--start .ev__i, .ev--info .ev__i { color: var(--ink-2); }
+.ev--pending { padding-bottom: var(--sp-3); }
+.ev--pending .ev__i, .ev--pending .ev__title { color: var(--ink-3); font-weight: var(--fw-medium); }
+.ev--pending::before { background: none; border-left: 1px dashed var(--rule-strong); }
+.ev--live .ev__title::after { content: ""; }
+.kv { display: flex; flex-wrap: wrap; gap: var(--sp-1) var(--sp-5); margin-top: var(--sp-1); color: var(--ink-2); }
+.kv b { color: var(--ink); font-weight: var(--fw-bold); }
+.err { display: block; margin-top: var(--sp-2); padding: var(--sp-2) var(--sp-3); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: var(--lh-xs); color: var(--ink); overflow-wrap: anywhere; }
+.subchecks { display: grid; gap: var(--sp-2); margin-top: var(--sp-2); }
+.subcheck { display: grid; grid-template-columns: 1rem minmax(0, 1fr); gap: var(--sp-2); }
+.subcheck .i { margin-top: 1px; }
+.subcheck.is-pass .i { color: var(--ok); }
+.subcheck.is-fail .i { color: var(--danger); }
+.subcheck.is-fail b { color: var(--danger); }
+.subcheck span { color: var(--ink-2); }
+.tail { margin-top: var(--sp-3); padding: var(--sp-3) var(--sp-4); background: var(--surface-sunk); border-radius: var(--r-chip); font-family: var(--font-code); font-size: var(--fs-xs); line-height: 1.25rem; color: var(--ink-2); white-space: pre-wrap; overflow: hidden; position: relative; max-width: 72ch; }
+.tail::after { content: ""; display: inline-block; width: 0.5em; height: 1em; vertical-align: -0.15em; background: var(--ink); animation: caret 1s steps(1) infinite; }
+@keyframes caret { 50% { opacity: 0; } }
+@media (prefers-reduced-motion: reduce) { .tail::after { animation: none; } }
+
+/* Progress meter: ink on a lighter step of the same neutral. Never orange, never blue. */
+.prog { height: 0.375rem; background: var(--rule); border-radius: 3px; overflow: hidden; }
+.prog__fill { height: 100%; background: var(--ink); border-radius: 3px; transition: width var(--dur-3) var(--ease); }
+
+/* Tabs */
+.tabs { display: flex; gap: var(--sp-5); padding: 0 var(--sp-7); border-bottom: 1px solid var(--rule); }
+.tab { position: relative; display: inline-flex; align-items: center; gap: var(--sp-2); min-height: var(--hit); padding: 0 var(--sp-1); background: none; border: 0; color: var(--ink-2); font-weight: var(--fw-medium); text-decoration: none; cursor: pointer; }
+.tab:hover { color: var(--ink); }
+.tab[aria-selected="true"] { color: var(--ink); font-weight: var(--fw-bold); }
+.tab[aria-selected="true"]::after { content: ""; position: absolute; left: 0; right: 0; bottom: -1px; height: 3px; background: var(--signal); border-radius: 2px 2px 0 0; }
+.tab__n { font-size: var(--fs-xs); font-weight: var(--fw-bold); color: var(--ink-2); background: var(--surface-sunk); border-radius: var(--r-chip); padding: 0 var(--sp-2); min-width: 1.5rem; text-align: center; }
+
+/* Panels, fields */
+.panel { background: var(--surface); border: 1px solid var(--rule); border-radius: var(--r-panel); }
+.field { display: grid; gap: var(--sp-2); }
+.field label, .field__label { font-size: var(--fs-sm); font-weight: var(--fw-bold); }
+.input, .textarea, .selectbox {
+  min-height: var(--hit); padding: 0 var(--sp-4);
+  background: var(--surface); border: 1px solid var(--rule-strong); border-radius: var(--r-control);
+  font-size: var(--fs-base); color: var(--ink); width: 100%;
+}
+.textarea { padding: var(--sp-3) var(--sp-4); line-height: var(--lh-base); resize: vertical; }
+.input[aria-invalid="true"] { border-color: var(--danger); box-shadow: inset 0 0 0 1px var(--danger); }
+.input::placeholder, .textarea::placeholder { color: var(--ink-3); }
+.ferr { display: flex; gap: var(--sp-2); align-items: flex-start; color: var(--danger); font-size: var(--fs-sm); line-height: var(--lh-sm); font-weight: var(--fw-medium); }
+.ferr .i { margin-top: 2px; }
+.btn--sm { min-height: 2.25rem; padding: 0 var(--sp-4); font-size: var(--fs-sm); }
+.btn[disabled], .btn[aria-disabled="true"] { cursor: not-allowed; background: var(--surface-sunk); border-color: var(--rule); color: var(--ink-3); }
+.vstr { font-family: var(--font-code); font-size: var(--fs-xs); background: var(--surface-sunk); padding: var(--sp-1) var(--sp-2); border-radius: var(--r-chip); white-space: nowrap; color: var(--ink); }
+.muted { color: var(--ink-3); }
+.ink2 { color: var(--ink-2); }
+
+/* Toast, used for undo and decisions */
+.toast { position: fixed; right: var(--sp-6); bottom: var(--sp-6); z-index: 20; display: flex; align-items: center; gap: var(--sp-4); padding: var(--sp-3) var(--sp-3) var(--sp-3) var(--sp-5); background: var(--ink); color: var(--surface); border-radius: var(--r-panel); box-shadow: var(--shadow-overlay); font-size: var(--fs-sm); font-weight: var(--fw-medium); }
+.toast .btn { min-height: 2.25rem; background: transparent; color: var(--surface); border-color: color-mix(in oklab, var(--surface) 55%, transparent); font-size: var(--fs-sm); }
+
+/* Band score cell, reused from the tickets list */
+.ucell { display: inline-grid; place-items: center; width: 2rem; height: 2rem; border-radius: var(--r-chip); font-size: var(--fs-md); font-weight: var(--fw-heavy); }
+.ucell--sm { width: 1.75rem; height: 1.75rem; font-size: var(--fs-base); }
+.ucell--today { background: var(--band-today); color: var(--band-today-ink); }
+.ucell--week { background: var(--band-week); color: var(--band-week-ink); }
+.ucell--month { background: var(--band-month); color: var(--band-month-ink); }
+.ucell--shutdown { background: var(--band-shutdown); color: var(--band-shutdown-ink); }
+.ucell--backlog { background: var(--band-backlog); color: var(--band-backlog-ink); }
+
+@media (max-width: 60rem) {
+  .topbar { flex-wrap: wrap; gap: var(--sp-3); padding: 0 var(--sp-4); }
+  .ready { order: 3; width: 100%; margin: 0; padding: var(--sp-1) 0 var(--sp-2); justify-content: space-between; gap: var(--sp-1); }
+  .ready li { gap: 0; }
+  .ready li + li::before { display: none; }
+  .ready__s { display: none; }
+  .themebtn { margin-left: auto; }
+  .phead { padding: var(--sp-5) var(--sp-4) var(--sp-4); }
+  .tabs { padding: 0 var(--sp-4); }
+  .ev { grid-template-columns: 3.25rem 1.5rem minmax(0, 1fr); }
+  .ev::before { left: calc(3.25rem + var(--sp-3) + 0.75rem - 0.5px); }
+  .toast { left: var(--sp-4); right: var(--sp-4); bottom: var(--sp-4); }
+}
+.topbar nav { margin-left: auto; }
+@media (max-width: 60rem) { .topbar nav { order: 3; width: 100%; margin: 0; } }
+a.btn { text-decoration: none; }
+button.ready__step { text-align: left; font: inherit; color: var(--ink-3); }
+
+/* ---- Login ---- */
+.gate { min-height: 100vh; display: grid; grid-template-rows: 1fr auto 2fr; justify-items: center; padding: var(--sp-6) var(--sp-5); }
+.gate__col { grid-row: 2; width: min(24rem, 100%); display: grid; gap: var(--sp-6); }
+.gate__mark { font-size: var(--fs-2xl); line-height: var(--lh-2xl); font-weight: var(--fw-heavy); letter-spacing: -0.015em; }
+.gate__what { color: var(--ink-2); margin-top: var(--sp-3); max-width: 34ch; }
+.gate form { display: grid; gap: var(--sp-5); padding: var(--sp-6); }
+.gate .field { gap: var(--sp-2); }
+.gate .btn { width: 100%; }
+.gate .ferr { margin-top: var(--sp-1); }
+.gate .ferr:empty { display: none; }
+.ferr.is-new { animation: fade var(--dur-1) var(--ease); }
+@keyframes fade { from { opacity: 0; } }
+.gate__theme { position: fixed; top: var(--sp-3); right: var(--sp-3); }
+@media (max-width: 30rem) {
+  .gate { grid-template-rows: auto auto 1fr; padding-top: var(--sp-8); }
+  .gate form { padding: var(--sp-5); }
+}
+</style>
+</head>
+<body>
+<button type="button" class="iconbtn gate__theme" onclick="toggleTheme()" aria-label="Switch theme"><svg class="i" viewBox="0 0 16 16" aria-hidden="true"><circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/></svg></button>
+<main class="gate">
+  <div class="gate__col">
+    <header>
+      <h1 class="gate__mark">Triage</h1>
+      <p class="gate__what">Drafts maintenance tickets from inspection findings, scored against your platform's own rules, for an engineer to approve.</p>
+    </header>
+    <form class="panel" novalidate onsubmit="event.preventDefault(); fail();">
+      <div class="field">
+        <label for="pass">Passphrase</label>
+        <input id="pass" class="input" type="password" autocomplete="current-password" autofocus aria-describedby="pass-err">
+        <p id="pass-err" class="ferr" role="alert"></p>
+      </div>
+      <button type="submit" class="btn btn--primary">Sign in</button>
+    </form>
+  </div>
+</main>
+<script>
+const Q = new URLSearchParams(location.search);
+if (Q.get("theme")) document.documentElement.dataset.theme = Q.get("theme");
+const STILL = Q.has("still");
+
+const P = {
+  check: '<path d="M3 8.5l3.2 3L13 4.5" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>',
+  cross: '<path d="M4 4l8 8M12 4l-8 8" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"/>',
+  ring: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.6" opacity=".3"/><path class="spin" d="M8 2.5a5.5 5.5 0 0 1 5.5 5.5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/>',
+  pending: '<circle cx="8" cy="8" r="5.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-dasharray="2.5 2"/>',
+  hollow: '<circle cx="8" cy="8" r="5" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  dot: '<circle cx="8" cy="8" r="4.5" fill="currentColor"/>',
+  info: '<circle cx="8" cy="8" r="6" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 7.25v4M8 4.6v.1" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  flag: '<path d="M3.5 14V2.5M3.5 3h8l-1.75 3 1.75 3h-8" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round" stroke-linecap="round"/>',
+  lock: '<rect x="3.5" y="7" width="9" height="6.5" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M5.5 7V5.25a2.5 2.5 0 0 1 5 0V7" fill="none" stroke="currentColor" stroke-width="1.5"/>',
+  chev: '<path d="M6 3.5L10.5 8 6 12.5" fill="none" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/>',
+  down: '<path d="M4.5 6.5L8 10l3.5-3.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  back: '<path d="M10 3L5 8l5 5" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>',
+  upload: '<path d="M8 11V3M4.5 6.5L8 3l3.5 3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  download: '<path d="M8 2.5v8M4.5 7.5L8 11l3.5-3.5M3 13.5h10" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  plus: '<path d="M8 3v10M3 8h10" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/>',
+  trash: '<path d="M3 4.5h10M6.5 4.5V3h3v1.5M4.5 4.5l.6 8.5h5.8l.6-8.5" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>',
+  pencil: '<path d="M10.5 2.5l3 3L6 13H3v-3z" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  doc: '<path d="M4 1.75h5L12.25 5v9.25H4z M9 1.75V5h3.25" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round"/>',
+  paste: '<rect x="3.5" y="3" width="9" height="11" rx="1.2" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 3V2h4v1" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M6 7.5h4M6 10h4" stroke="currentColor" stroke-width="1.4" stroke-linecap="round"/>',
+  theme: '<circle cx="8" cy="8" r="5.5" fill="none" stroke="currentColor" stroke-width="1.5"/><path d="M8 2.5a5.5 5.5 0 0 1 0 11z" fill="currentColor"/>',
+  play: '<path d="M5 3.5v9l7-4.5z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/>',
+  stop: '<rect x="4" y="4" width="8" height="8" rx="1" fill="none" stroke="currentColor" stroke-width="1.6"/>',
+  refresh: '<path d="M13 8a5 5 0 1 1-1.5-3.55M13 2.75v2.5h-2.5" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"/>',
+  sheet: '<path d="M2.5 3.5h11v9h-11zM2.5 6.5h11M6.5 6.5v6" fill="none" stroke="currentColor" stroke-width="1.4"/>',
+};
+const ic = (n, cls = "") => `<svg class="i ${cls}" viewBox="0 0 16 16" aria-hidden="true">${P[n]}</svg>`;
+const esc = (s) => String(s).replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+
+function status(kind, word, extra = "") {
+  const map = {
+    running: ["", "ring"], queued: ["status--muted", "pending"], done: ["", "check"],
+    ok: ["status--ok", "check"], fail: ["status--danger", "cross"], draft: ["status--muted", "pencil"],
+    info: ["", "info"], locked: ["status--muted", "lock"],
+  };
+  const [cls, icon] = map[kind];
+  return `<span class="status ${cls} ${extra}">${ic(icon)}${word}</span>`;
+}
+
+function toggleTheme() {
+  const r = document.documentElement;
+  const dark = r.dataset.theme === "dark" || (!r.dataset.theme && matchMedia("(prefers-color-scheme: dark)").matches);
+  r.dataset.theme = dark ? "light" : "dark";
+}
+
+/* steps: [{n, label, sub, state: done|current|locked|stale|todo, href, why}] */
+function topbar(steps, current) {
+  const items = steps.map((s) => {
+    const cls = ["ready__step", s.state === "done" ? "is-done" : "", s.n === current ? "is-current" : "",
+      s.state === "locked" ? "is-locked" : "", s.state === "stale" ? "is-stale" : ""].join(" ");
+    const sub = s.state === "stale" ? `<span class="ready__s is-danger">${ic("cross")}${s.sub}</span>`
+      : s.state === "locked" ? `<span class="ready__s">${ic("lock")}${s.sub}</span>`
+      : `<span class="ready__s">${s.sub}</span>`;
+    const inner = `<span class="ready__n">${s.n}</span><span class="ready__t">${s.label}${sub}</span>`;
+    return s.state === "locked"
+      ? `<li><button type="button" class="${cls}" aria-disabled="true" title="${s.why}">${inner}</button></li>`
+      : `<li><a class="${cls}" href="${s.href}"${s.n === current ? ' aria-current="page"' : ""}>${inner}</a></li>`;
+  }).join("");
+  return `<header class="topbar">
+  <span class="wordmark">Triage</span>
+  <button type="button" class="ws">Bravo platform${ic("down")}</button>
+  <nav aria-label="Workspace steps"><ol class="ready">${items}</ol></nav>
+  <button type="button" class="iconbtn themebtn" onclick="toggleTheme()" aria-label="Switch theme">${ic("theme")}</button>
+</header>`;
+}
+
+const secs = (t) => t < 60 ? t.toFixed(2) + " s" : `${Math.floor(t / 60)}:${(t % 60).toFixed(1).padStart(4, "0")}`;
+function ladder(evs) {
+  const icon = { done: "check", pass: "check", fail: "cross", info: "info", start: "ring", pending: "pending", wait: "pending" };
+  const cls = { done: "ev--done", pass: "ev--pass", fail: "ev--fail", info: "ev--info", start: "ev--start", pending: "ev--pending", wait: "ev--pending" };
+  return `<ol class="ladder">${evs.map((e) => `<li class="ev ${cls[e.status]}">
+    <span class="ev__t">${e.ts == null ? "" : secs(e.ts)}</span>
+    <span class="ev__i">${ic(icon[e.status])}</span>
+    <div class="ev__b"><p class="ev__title"><span class="ev__stage">${e.stage}</span>${e.title}${e.status === "start" ? '<span class="sr-only">, running</span>' : ""}</p>${e.body && e.body.startsWith("<") ? e.body : e.body ? `<p class="ev__d">${e.body}</p>` : ""}</div>
+  </li>`).join("")}</ol>`;
+}
+
+
+const msg = `${ic("cross")}<span>Wrong passphrase. Ask whoever set up this Triage for the current one.</span>`;
+function fail() {
+  const i = document.getElementById("pass"), e = document.getElementById("pass-err");
+  i.setAttribute("aria-invalid", "true");
+  e.classList.remove("is-new"); void e.offsetWidth; e.classList.add("is-new");
+  e.innerHTML = msg;
+  i.select();
+}
+if (Q.get("state") === "error") { document.getElementById("pass").value = "bravo-2025"; fail(); document.getElementById("pass").blur(); }
+</script>
+</body>
+</html>

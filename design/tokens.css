@@ -1,0 +1,173 @@
+/* Triage design tokens.
+ *
+ * Fonts: Atkinson Hyperlegible Next for everything, Atkinson Hyperlegible Mono
+ * only inside the YAML editor. In React prefer the <link> in index.html over
+ * this @import so the font request starts before the CSS parses:
+ *
+ * <link rel="preconnect" href="https://fonts.googleapis.com">
+ * <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+ * <link href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap" rel="stylesheet">
+ */
+@import url("https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Mono:wght@400;600&family=Atkinson+Hyperlegible+Next:wght@400..800&display=swap");
+
+:root {
+  color-scheme: light;
+
+  /* Base palette, light. Neutrals derive from RAL 7035 (enclosure grey) and
+     RAL 7016 (anthracite); interaction is RAL 5005 (signal blue). */
+  --plane: #e9ece9;          /* page background, enclosure grey */
+  --surface: #f8f9f7;        /* panels, table body */
+  --surface-sunk: #eff1ee;   /* table header, code, badges */
+  --ink: #22292b;            /* anthracite, primary text */
+  --ink-2: #4b5558;          /* secondary text */
+  --ink-3: #5d676a;          /* muted text; AA on plane, surface and sunk */
+  --rule: #d5dad7;           /* hairline dividers, decorative only */
+  --rule-strong: #7f8987;    /* input and control boundaries, 3:1 */
+  --signal: #1f4f8f;         /* links, primary buttons, focus, selection */
+  --signal-ink: #ffffff;     /* text on --signal */
+  --signal-wash: #e1e9f4;    /* selected row */
+
+  /* Semantic. Never decorative; always paired with an icon and a word. */
+  --ok: #1d6e45;             /* approved, validation passed */
+  --ok-wash: #e2efe7;
+  --danger: #a3164f;         /* rejected, validation failed; crimson, kept clear of the urgency ramp */
+  --danger-wash: #f6e3ea;
+
+  /* Urgency bands. The only warm colour in the product. One hue (safety
+     orange), ordered by distance from the surface: today sits furthest from
+     the page in both themes, so the same band is rust here and peach in dark.
+     Validated with the dataviz ordinal checks against --surface. */
+  --band-today: #9d2800;
+  --band-today-ink: #ffffff;
+  --band-week: #be4500;
+  --band-week-ink: #ffffff;
+  --band-month: #d36c1b;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #d58d52;
+  --band-shutdown-ink: #1a2023;
+  --band-backlog: #d3ab85;
+  --band-backlog-ink: #1a2023;
+
+  /* Type */
+  --font-ui: "Atkinson Hyperlegible Next", system-ui, sans-serif;
+  --font-code: "Atkinson Hyperlegible Mono", ui-monospace, monospace;
+
+  --fs-xs: 0.75rem;   --lh-xs: 1rem;        /* 12/16 badges, table meta */
+  --fs-sm: 0.8125rem; --lh-sm: 1.125rem;    /* 13/18 secondary, table cells */
+  --fs-base: 0.9375rem; --lh-base: 1.4rem;  /* 15/22.4 body, rationale */
+  --fs-md: 1.0625rem; --lh-md: 1.5rem;      /* 17/24 panel headings, band strips */
+  --fs-lg: 1.25rem;   --lh-lg: 1.625rem;    /* 20/26 screen titles, tag in detail */
+  --fs-xl: 1.5rem;    --lh-xl: 1.875rem;    /* 24/30 score numerals */
+  --fs-2xl: 2rem;     --lh-2xl: 2.25rem;    /* 32/36 rare */
+  --fs-num: 3rem;     --lh-num: 1;          /* 48 urgency numeral in detail */
+
+  --fw-regular: 400;
+  --fw-medium: 560;
+  --fw-bold: 700;
+  --fw-heavy: 780;   /* numerals only */
+
+  --measure: 68ch;   /* prose line length */
+
+  /* Space, 4px base */
+  --sp-1: 0.125rem;  /* 2 */
+  --sp-2: 0.25rem;   /* 4 */
+  --sp-3: 0.5rem;    /* 8 */
+  --sp-4: 0.75rem;   /* 12 */
+  --sp-5: 1rem;      /* 16 */
+  --sp-6: 1.5rem;    /* 24 */
+  --sp-7: 2rem;      /* 32 */
+  --sp-8: 3rem;      /* 48 */
+  --sp-9: 4rem;      /* 64 */
+
+  /* Radius by role, not one radius everywhere */
+  --r-strip: 0;      /* table rows, band strips */
+  --r-chip: 3px;     /* chips, badges, score cells */
+  --r-control: 6px;  /* buttons, inputs */
+  --r-panel: 10px;   /* panels, sheets, dialogs */
+
+  --shadow-overlay: 0 8px 24px rgb(34 41 43 / 0.18), 0 1px 3px rgb(34 41 43 / 0.12);
+
+  --hit: 2.75rem;    /* 44px minimum touch target */
+  --focus-ring: 0 0 0 2px var(--surface), 0 0 0 4px var(--signal);
+
+  --dur-1: 120ms;
+  --dur-2: 200ms;
+  --dur-3: 320ms;            /* layout moves on the lane grid, progress bar */
+  --ease: cubic-bezier(0.2, 0, 0, 1);
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    color-scheme: dark;
+    --plane: #1a2023;
+    --surface: #1e2427;
+    --surface-sunk: #262e31;
+    --ink: #e6e9e6;
+    --ink-2: #b4bdbc;
+    --ink-3: #929c9d;
+    --rule: #333c3f;
+    --rule-strong: #6f797c;
+    --signal: #8fb6ee;
+    --signal-ink: #10243f;
+    --signal-wash: #223246;
+    --ok: #72c99d;
+    --ok-wash: #1d3329;
+    --danger: #f28fb4;
+    --danger-wash: #3d2330;
+    --band-today: #ffac5a;
+    --band-today-ink: #1a2023;
+    --band-week: #f68e40;
+    --band-week-ink: #1a2023;
+    --band-month: #de7133;
+    --band-month-ink: #1a2023;
+    --band-shutdown: #af5b39;
+    --band-shutdown-ink: #ffffff;
+    --band-backlog: #824c39;
+    --band-backlog-ink: #ffffff;
+    --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+  }
+}
+
+:root[data-theme="dark"] {
+  color-scheme: dark;
+  --plane: #1a2023;
+  --surface: #1e2427;
+  --surface-sunk: #262e31;
+  --ink: #e6e9e6;
+  --ink-2: #b4bdbc;
+  --ink-3: #929c9d;
+  --rule: #333c3f;
+  --rule-strong: #6f797c;
+  --signal: #8fb6ee;
+  --signal-ink: #10243f;
+  --signal-wash: #223246;
+  --ok: #72c99d;
+  --ok-wash: #1d3329;
+  --danger: #f28fb4;
+  --danger-wash: #3d2330;
+  --band-today: #ffac5a;
+  --band-today-ink: #1a2023;
+  --band-week: #f68e40;
+  --band-week-ink: #1a2023;
+  --band-month: #de7133;
+  --band-month-ink: #1a2023;
+  --band-shutdown: #af5b39;
+  --band-shutdown-ink: #ffffff;
+  --band-backlog: #824c39;
+  --band-backlog-ink: #ffffff;
+  --shadow-overlay: 0 8px 24px rgb(0 0 0 / 0.45), 0 1px 3px rgb(0 0 0 / 0.35);
+}
+
+:focus-visible {
+  outline: none;
+  box-shadow: var(--focus-ring);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+}
